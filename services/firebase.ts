@@ -1,0 +1,56 @@
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore, doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+
+// Type for the configuration object
+export interface FirebaseConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+}
+
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+
+export const initFirebase = (config: FirebaseConfig) => {
+  try {
+    app = initializeApp(config);
+    db = getFirestore(app);
+    return true;
+  } catch (error) {
+    console.error("Firebase Init Error:", error);
+    return false;
+  }
+};
+
+export const getDB = () => db;
+
+// Helper to save entire school data object (simulating a document based structure)
+export const saveSchoolData = async (schoolId: string, collectionName: string, data: any) => {
+  if (!db) return;
+  try {
+    // We store huge arrays in single documents for simplicity in this migration
+    // Structure: schools/{schoolId}/collections/{collectionName}
+    const docRef = doc(db, 'schools', schoolId, 'data', collectionName);
+    await setDoc(docRef, { items: data }, { merge: true });
+  } catch (e) {
+    console.error(`Error saving ${collectionName}:`, e);
+  }
+};
+
+export const loadSchoolData = async (schoolId: string, collectionName: string) => {
+  if (!db) return null;
+  try {
+    const docRef = doc(db, 'schools', schoolId, 'data', collectionName);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().items;
+    }
+    return null;
+  } catch (e) {
+    console.error(`Error loading ${collectionName}:`, e);
+    return null;
+  }
+};
