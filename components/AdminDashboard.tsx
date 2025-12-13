@@ -288,6 +288,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     reader.readAsText(file);
   };
 
+  const handleClearStudents = () => {
+    if (students.length === 0) {
+        alert('لا يوجد طلاب لحذفهم.');
+        return;
+    }
+    if (window.confirm('تحذير: سيتم حذف جميع الطلاب المسجلين في النظام. هل أنت متأكد؟\n(لن يتم حذف الفصول أو الجداول)')) {
+        onSetStudents([]);
+        alert('تم حذف جميع الطلاب بنجاح.');
+    }
+  };
+
   // ... (Rest of handlers remain unchanged)
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -602,6 +613,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         >
                             <Plus size={32} />
                             <span>إضافة طالب يدوياً</span>
+                        </button>
+
+                        <button 
+                            onClick={handleClearStudents}
+                            className="flex-1 bg-red-50 text-red-800 py-4 rounded-xl hover:bg-red-100 font-bold flex flex-col items-center justify-center gap-2 border border-red-200 shadow-sm transition-all"
+                        >
+                            <Trash2 size={32} />
+                            <span>حذف جميع الطلاب</span>
+                            <span className="text-[10px] font-normal opacity-80">تفريغ قاعدة بيانات الطلاب</span>
                         </button>
                     </div>
 

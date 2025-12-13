@@ -49,7 +49,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -694,7 +694,7 @@ const App: React.FC = () => {
       if (schoolRegistry.length > 0) {
           setCurrentSchoolId(schoolRegistry[0].id);
       } else {
-          const defaultSchool = { id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true };
+          const defaultSchool = { id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true }];
           setSchoolRegistry([defaultSchool]);
           setCurrentSchoolId('default');
       }
