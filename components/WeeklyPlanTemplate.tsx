@@ -69,12 +69,12 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
 
   return (
     // A4 Portrait Container: Approx 210mm width. Using tailwind arbitrary values for print precision.
-    <div className="w-full bg-white text-black p-4 mx-auto print:p-0 print:w-[210mm] print:h-[297mm] print:mx-0 overflow-hidden relative">
+    <div className="w-full bg-white text-black p-4 mx-auto print:p-0 print:w-[210mm] print:h-[297mm] print:mx-0 overflow-hidden relative flex flex-col justify-between">
       
-      {/* Header - Compact for Portrait */}
-      <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-2 h-[15%]">
+      {/* Header - Compact for Portrait (12% Height) */}
+      <div className="flex justify-between items-start border-b-2 border-black pb-2 h-[12%]">
         {/* Right Section */}
-        <div className="text-right space-y-1 text-xs font-bold flex-1 pt-2">
+        <div className="text-right space-y-0.5 text-[10px] font-bold flex-1 pt-2">
           <p>{settings.ministryName}</p>
           <p>{settings.authorityName}</p>
           <p>{settings.directorateName}</p>
@@ -86,27 +86,27 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
             <img 
               src={settings.logoUrl}
               alt="Logo" 
-              className="h-24 object-contain print:h-20"
+              className="h-20 object-contain print:h-20"
             />
         </div>
 
         {/* Left Section */}
-        <div className="text-left space-y-1 text-xs font-bold flex-1 pt-2 flex flex-col items-end">
+        <div className="text-left space-y-0.5 text-[10px] font-bold flex-1 pt-2 flex flex-col items-end">
            <div className="text-right" dir="rtl">
-              <p>من: {weekInfo.startDate}</p>
-              <p>إلى: {weekInfo.endDate}</p>
-              <p>الأسبوع: {weekInfo.weekNumber}</p>
-              <p>الصف: <span className="text-sm">{classGroup.name}</span></p>
-              <p className="text-[10px] text-gray-500 mt-1">{weekInfo.semester}</p>
+              <p>من: <span className="font-normal">{weekInfo.startDate}</span></p>
+              <p>إلى: <span className="font-normal">{weekInfo.endDate}</span></p>
+              <p>الأسبوع: <span className="font-normal">{weekInfo.weekNumber}</span></p>
+              <p>الصف: <span className="font-normal">{classGroup.name}</span></p>
+              <p className="text-[9px] text-gray-500 mt-0.5">{weekInfo.semester}</p>
            </div>
         </div>
       </div>
 
-      {/* Main Table - Optimized for Portrait Width */}
-      <div className="border-2 border-black h-[65%]">
-        <table className="w-full border-collapse text-center table-fixed h-full">
+      {/* Main Table - Optimized for Portrait Width (68% Height) */}
+      <div className="border-2 border-black flex-1 mt-2">
+        <table className="w-full h-full border-collapse text-center table-fixed">
           <thead>
-            <tr className="bg-gray-100 text-[10px] print:text-[9px]">
+            <tr className="bg-gray-100 text-[10px] print:text-[9px] h-[4%]">
               <th className="border border-black p-0.5 w-[5%] font-bold">اليوم</th>
               <th className="border border-black p-0.5 w-[5%] font-bold">م</th>
               <th className="border border-black p-0.5 w-[12%] font-bold">المادة</th>
@@ -124,7 +124,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                 const isFirstPeriod = pIndex === 0;
 
                 return (
-                  <tr key={`${dIndex}-${period}`} className="text-[10px] print:text-[9px] print:h-8">
+                  <tr key={`${dIndex}-${period}`} className="text-[10px] print:text-[9px]">
                     {/* Day Column: Vertical Text to save space */}
                     {isFirstPeriod && (
                       <td 
@@ -146,22 +146,22 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                     </td>
                     
                     {/* Lesson Topic */}
-                    <td className="border border-black text-right px-1 align-top pt-1 overflow-hidden">
-                      <div className="line-clamp-2 leading-tight">
+                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
+                      <div className="line-clamp-1 leading-tight text-[9px]">
                         {entry?.lessonTopic || ''}
                       </div>
                     </td>
                     
                     {/* Homework */}
-                    <td className="border border-black text-right px-1 align-top pt-1 overflow-hidden">
-                       <div className="line-clamp-2 leading-tight">
+                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
+                       <div className="line-clamp-1 leading-tight text-[9px]">
                         {entry?.homework || ''}
                        </div>
                     </td>
                     
                     {/* Notes */}
-                    <td className="border border-black text-right px-1 align-top pt-1 overflow-hidden">
-                        <div className="line-clamp-2 leading-tight text-[8px]">
+                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
+                        <div className="line-clamp-1 leading-tight text-[8px]">
                             {entry?.notes || ''}
                         </div>
                     </td>
@@ -173,13 +173,13 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </table>
       </div>
 
-      {/* Footer Notes - Side by Side */}
-      <div className="mt-1 border-2 border-black flex h-[18%]">
+      {/* Footer Notes - Side by Side (18% Height) */}
+      <div className="mt-2 border-2 border-black flex h-[18%]">
         {/* Right Note (General) */}
         <div className="w-1/2 border-l-2 border-black p-1 flex flex-col">
-          <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xs">رسائل عامة</h3>
+          <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-[10px]">رسائل عامة</h3>
           <textarea
-            className={`w-full h-full text-right text-xs resize-none focus:outline-none bg-transparent p-1 ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
+            className={`w-full h-full text-right text-[10px] resize-none focus:outline-none bg-transparent p-1 leading-snug ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
             value={settings.footerNotesRight}
             onChange={(e) => handleFooterChange('footerNotesRight', e.target.value)}
             readOnly={!onUpdateSettings}
@@ -188,11 +188,11 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         
         {/* Left Note (School Specific/Image) */}
         <div className="w-1/2 p-1 flex flex-col relative group">
-            <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xs flex items-center justify-center gap-2">
+            <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-[10px] flex items-center justify-center gap-2">
                 ملاحظات المدرسة
                 {onUpdateSettings && (
                      <label className="cursor-pointer print:hidden p-0.5 hover:bg-gray-200 rounded-full" title="رفع صورة">
-                        <ImageIcon size={12} className="text-gray-500 hover:text-blue-600"/>
+                        <ImageIcon size={10} className="text-gray-500 hover:text-blue-600"/>
                         <input type="file" accept="image/*" className="hidden" onChange={handleNoteImageUpload}/>
                      </label>
                 )}
@@ -219,7 +219,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                     </div>
                 ) : (
                     <textarea
-                        className={`w-full h-full text-right text-xs resize-none focus:outline-none bg-transparent p-1 ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
+                        className={`w-full h-full text-right text-[10px] resize-none focus:outline-none bg-transparent p-1 leading-snug ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
                         placeholder="اكتب ملاحظاتك هنا..."
                         value={settings.footerNotesLeft}
                         onChange={(e) => handleFooterChange('footerNotesLeft', e.target.value)}
@@ -231,7 +231,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
       </div>
       
       {/* Branding */}
-      <div className="text-center text-[8px] text-gray-400 mt-1 print:mt-0">
+      <div className="text-center text-[8px] text-gray-400 mt-0.5 print:mt-0">
         Madrasti Planner System
       </div>
     </div>

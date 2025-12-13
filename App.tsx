@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ErrorInfo, ReactNode, useRef, Component } from 'react';
+import React, { useState, useEffect, ErrorInfo, ReactNode, useRef } from 'react';
 import WeeklyPlanTemplate from './components/WeeklyPlanTemplate';
 import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
@@ -49,7 +49,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null
