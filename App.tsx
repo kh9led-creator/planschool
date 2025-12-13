@@ -4,7 +4,7 @@ import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
@@ -224,7 +224,7 @@ interface SchoolSystemProps {
   onSwitchSchool: (id: string) => void;
   onOpenSystemAdmin: () => void;
   isCloudConnected: boolean;
-  onRegisterSchool: (data: Partial<SchoolMetadata>) => void;
+  onRegisterSchool: (data: Partial<SchoolMetadata>) => Promise<void>;
   onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => Promise<boolean> | boolean;
   pricing: PricingConfig; // Received from App
   availableSchools: SchoolMetadata[]; // For switcher
@@ -335,13 +335,9 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
       setIsRegistering(true);
       
-      // Simulate registration and sending email
-      const newActivationCode = Math.floor(100000 + Math.random() * 900000).toString();
-
       try {
-        await sendActivationEmail(regForm.email, regForm.name, newActivationCode, 'registration');
-        
-        onRegisterSchool({
+        // We now delegate the entire process to the App parent to handle logic securely
+        await onRegisterSchool({
             name: regForm.name,
             email: regForm.email,
             managerPhone: regForm.phone,
@@ -349,17 +345,15 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             adminPassword: regForm.password,
             plan: 'trial',
             isActive: true,
-            isPaid: false,
-            activationCode: newActivationCode // This is stored but not shown to user
+            isPaid: false
         });
         
         setShowRegisterModal(false);
         setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
-        // SMART ACTION: Auto-login after registration
-        setView(ViewState.ADMIN);
-        alert(`تم تسجيل المدرسة بنجاح! تم إرسال كود التفعيل إلى ${regForm.email} (لأغراض الاختبار: ${newActivationCode})`);
+        // Smart View: The App will handle the view switch via props update
+        
       } catch (error) {
-          alert('فشل إرسال البريد الإلكتروني. يرجى المحاولة مرة أخرى.');
+          alert('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
       } finally {
           setIsRegistering(false);
       }
@@ -772,36 +766,71 @@ const SystemDashboard: React.FC<{
                 {/* Content */}
                 <div className="flex-1">
                     {activeTab === 'schools' && (
-                        <div className="grid gap-4">
-                            {schools.map(school => (
-                                <div key={school.id} className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-start border border-slate-200 hover:border-indigo-300 transition-all group">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-lg text-slate-800">{school.name}</h3>
-                                        <div className="flex items-center gap-3 text-[10px] mt-1">
-                                            <span className="text-slate-400 font-mono">ID: {school.id}</span>
-                                            <button onClick={() => copyToClipboard(`User: ${school.adminUsername}\nPass: ${school.adminPassword}`)} className="text-indigo-400 hover:text-indigo-600 flex items-center gap-1" title="نسخ بيانات الدخول"><Key size={12}/> بيانات الدخول</button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {schools.map(school => {
+                                const isExpired = new Date(school.subscriptionEnd) < new Date();
+                                const daysRemaining = Math.ceil((new Date(school.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                                
+                                return (
+                                    <div key={school.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all group flex flex-col">
+                                        <div className="p-5 border-b border-slate-100 flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-bold text-lg text-slate-800">{school.name}</h3>
+                                                <p className="text-xs text-slate-400 mt-1 font-mono">ID: {school.id}</p>
+                                            </div>
+                                            <div className={`w-2 h-2 rounded-full ${school.isActive ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                                         </div>
-                                        <div className="flex gap-2 mt-3">
-                                            <span className={`text-[10px] px-2 py-1 rounded font-bold ${school.isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                {school.isActive ? 'نشط' : 'غير نشط'}
-                                            </span>
-                                            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold uppercase">
-                                                {school.plan}
-                                            </span>
+                                        
+                                        <div className="p-5 space-y-3 flex-1 bg-slate-50/30">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-slate-500 font-bold">الحالة:</span>
+                                                <span className={`px-2 py-1 rounded font-bold ${school.isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                    {school.isActive ? 'نشط' : 'غير نشط'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-slate-500 font-bold">الباقة:</span>
+                                                <span className="bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold uppercase">{school.plan}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-slate-500 font-bold">الصلاحية:</span>
+                                                <span className={`${daysRemaining < 7 ? 'text-red-500' : 'text-slate-700'} font-mono`}>
+                                                    {isExpired ? 'منتهي' : `باقي ${daysRemaining} يوم`}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 bg-white border-t border-slate-100 flex gap-2">
+                                            <button 
+                                                onClick={() => onSelectSchool(school.id)} 
+                                                className="flex-1 bg-slate-800 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-sm"
+                                            >
+                                                <Shield size={16}/> إدارة المدرسة
+                                            </button>
+                                            <button 
+                                                onClick={() => copyToClipboard(`URL: ${window.location.origin}\nUser: ${school.adminUsername}\nPass: ${school.adminPassword}`)} 
+                                                className="bg-slate-100 text-slate-500 p-2.5 rounded-xl hover:bg-slate-200 transition-colors"
+                                                title="نسخ بيانات الدخول"
+                                            >
+                                                <Key size={18}/>
+                                            </button>
+                                            <button 
+                                                onClick={() => onDeleteSchool(school.id)} 
+                                                className="bg-rose-50 text-rose-500 p-2.5 rounded-xl hover:bg-rose-100 transition-colors"
+                                                title="حذف المدرسة"
+                                            >
+                                                <Trash2 size={18}/>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        <button 
-                                            onClick={() => onSelectSchool(school.id)} 
-                                            className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
-                                        >
-                                            <LogIn size={16}/> إدارة المدرسة
-                                        </button>
-                                        <button onClick={() => onDeleteSchool(school.id)} className="text-rose-400 hover:text-rose-600 text-xs flex items-center justify-end gap-1 px-2 py-1"><Trash2 size={12}/> حذف</button>
-                                    </div>
+                                );
+                            })}
+                            {schools.length === 0 && (
+                                <div className="col-span-full py-20 bg-white rounded-xl border border-dashed border-slate-300 text-center flex flex-col items-center">
+                                    <div className="bg-slate-50 p-4 rounded-full mb-3"><School size={32} className="text-slate-300"/></div>
+                                    <p className="text-slate-400 font-bold">لا يوجد مدارس مسجلة في النظام</p>
                                 </div>
-                            ))}
-                            {schools.length === 0 && <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">لا يوجد مدارس مسجلة</div>}
+                            )}
                         </div>
                     )}
 
@@ -1013,7 +1042,11 @@ const App: React.FC = () => {
       // Simulate Email Service for Registration
       const newActivationCode = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // We assume the form caller handles the loading state, but here we can double check or just process
+      // Sending email officially from the system side
+      if(data.email && data.name) {
+          await sendActivationEmail(data.email, data.name, newActivationCode, 'registration');
+      }
+
       const newSchool: SchoolMetadata = {
           id: data.id || `sch_${Date.now()}`,
           name: data.name || 'مدرسة جديدة',
@@ -1033,6 +1066,8 @@ const App: React.FC = () => {
       setSchools(prev => [...prev, newSchool]);
       setActiveSchoolId(newSchool.id);
       setInitialView(ViewState.ADMIN);
+      
+      alert(`تم تسجيل المدرسة بنجاح! تم إرسال كود التفعيل إلى ${data.email}`);
   };
 
   const handleUpgradeSubscription = async (schoolId: string, plan: SubscriptionPlan, code: string) => {
@@ -1082,18 +1117,11 @@ const App: React.FC = () => {
                     onOpenSystemAdmin={() => setSystemView('SYSTEM')}
                     isCloudConnected={isCloudConnected}
                     onRegisterSchool={handleRegisterSchool}
-                    onUpgradeSubscription={() => false}
+                    onUpgradeSubscription={async () => false}
                     pricing={pricing}
                     availableSchools={[]}
                     initialView={ViewState.HOME} // Doesn't matter, we just want the Register Modal triggered
                  />
-                 {/* 
-                    Note: The SchoolSystem above is a bit of a hack to get the Register Modal context. 
-                    Better to just render the SchoolSystem component which handles the Register Modal internally 
-                    if we trigger it via button. 
-                    
-                    Actually, let's just reuse the existing SchoolSystem but we need to trigger the modal immediately.
-                 */}
              </div>
          </div>
      );
