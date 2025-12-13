@@ -2,9 +2,10 @@ import React, { useState, useEffect, ErrorInfo, ReactNode, Component } from 'rea
 import WeeklyPlanTemplate from './components/WeeklyPlanTemplate';
 import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
+import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft } from 'lucide-react';
-import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB } from './services/firebase';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone } from 'lucide-react';
+import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 
 // --- 1. Robust Types & Constants ---
 
@@ -14,7 +15,8 @@ enum ViewState {
   TEACHER
 }
 
-type SubscriptionPlan = 'basic' | 'pro' | 'enterprise';
+// Updated Subscription Plans
+type SubscriptionPlan = 'trial' | 'quarterly' | 'annual' | string;
 
 interface SchoolMetadata {
   id: string;
@@ -28,8 +30,11 @@ interface SchoolMetadata {
   maxTeachers?: number;
   // Admin Credentials
   email?: string;
+  managerPhone: string; // New field
   adminUsername?: string;
   adminPassword?: string;
+  activationCode: string; // New field
+  isPaid: boolean; // New field
   isVerified?: boolean;
 }
 
@@ -179,6 +184,7 @@ interface SchoolSystemProps {
   onOpenSystemAdmin: () => void;
   isCloudConnected: boolean;
   onRegisterSchool: (data: Partial<SchoolMetadata>) => void;
+  onActivateSchool: (id: string, code: string) => boolean;
 }
 
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
@@ -187,7 +193,8 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   onSwitchSchool,
   onOpenSystemAdmin,
   isCloudConnected,
-  onRegisterSchool
+  onRegisterSchool,
+  onActivateSchool
 }) => {
   const [view, setView] = useState<ViewState>(ViewState.HOME);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
@@ -196,11 +203,13 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   
   // Registration State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [regStep, setRegStep] = useState(1); // 1: Info, 2: Verification
-  const [regForm, setRegForm] = useState({ name: '', email: '', username: '', password: '' });
-  const [verificationCode, setVerificationCode] = useState('');
-  const [inputCode, setInputCode] = useState('');
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [regStep, setRegStep] = useState(1); // 1: Info, 2: Invoice, 3: Activation
+  const [regForm, setRegForm] = useState({ 
+      name: '', email: '', phone: '', username: '', password: '', plan: 'trial' as SubscriptionPlan 
+  });
+  const [pendingSchoolId, setPendingSchoolId] = useState<string | null>(null);
+  const [activationInput, setActivationInput] = useState('');
+  const [invoiceId, setInvoiceId] = useState('');
 
   // Check Subscription Status
   const isExpired = new Date(schoolMetadata.subscriptionEnd) < new Date();
@@ -246,6 +255,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     // 2. Check Specific School Admin (Registered via Portal)
     if (schoolMetadata.adminUsername && schoolMetadata.adminPassword) {
         if (username === schoolMetadata.adminUsername && password === schoolMetadata.adminPassword) {
+             if (!schoolMetadata.isActive) {
+                 alert('عذراً، حساب المدرسة غير مفعل بعد. يرجى التواصل مع الدعم الفني.');
+                 return;
+             }
              setView(ViewState.ADMIN);
              setUsername('');
              setPassword('');
@@ -256,6 +269,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     // 3. Check Teacher Login
     const teacher = teachers.find(t => t.username === username && t.password === password);
     if (teacher) {
+        if (!schoolMetadata.isActive) {
+             alert('عذراً، حساب المدرسة غير مفعل بعد.');
+             return;
+        }
         setSelectedTeacherId(teacher.id);
         setView(ViewState.TEACHER);
         setUsername('');
@@ -265,48 +282,68 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     }
   };
 
-  const handleInitiateRegistration = (e: React.FormEvent) => {
+  // --- Registration Logic ---
+
+  // Step 1: Submit Details -> Create Inactive School
+  const handleRegisterStep1 = (e: React.FormEvent) => {
       e.preventDefault();
-      if(regForm.name.length < 3 || regForm.username.length < 3 || regForm.password.length < 4 || !regForm.email.includes('@')) {
+      if(regForm.name.length < 3 || regForm.username.length < 3 || regForm.password.length < 4 || regForm.phone.length < 10) {
           alert('الرجاء تعبئة جميع الحقول بشكل صحيح');
           return;
       }
-      
-      setIsSendingEmail(true);
-      
-      // Simulate API Call to send Email
-      setTimeout(() => {
-          const code = Math.floor(1000 + Math.random() * 9000).toString();
-          setVerificationCode(code);
-          setIsSendingEmail(false);
-          setRegStep(2);
-          alert(`رمز التحقق (محاكاة): ${code}\nتم إرسال الرمز إلى ${regForm.email}`);
-      }, 2000);
-  };
 
-  const handleVerifyAndRegister = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (inputCode !== verificationCode) {
-          alert('رمز التحقق غير صحيح');
-          return;
-      }
-
+      const tempId = `sch_${Date.now()}`;
+      setPendingSchoolId(tempId);
+      setInvoiceId(`INV-${Math.floor(100000 + Math.random() * 900000)}`);
+      
       onRegisterSchool({
+          id: tempId,
           name: regForm.name,
           email: regForm.email,
+          managerPhone: regForm.phone,
           adminUsername: regForm.username,
           adminPassword: regForm.password,
-          isVerified: true
+          plan: regForm.plan,
+          isActive: false, // Important
+          isPaid: false
       });
+      
+      setRegStep(2); // Move to invoice
+  };
 
-      // Reset
-      setShowRegisterModal(false);
-      setRegForm({ name: '', email: '', username: '', password: '' });
-      setRegStep(1);
-      setInputCode('');
+  // Step 2: Confirm Payment
+  const handleRegisterStep2 = () => {
+      setRegStep(3); // Move to Activation
+  };
+
+  // Step 3: Enter Code
+  const handleRegisterStep3 = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!pendingSchoolId) return;
+
+      const success = onActivateSchool(pendingSchoolId, activationInput);
+      if (success) {
+          alert('تم تفعيل المدرسة بنجاح! يمكنك الآن تسجيل الدخول.');
+          setShowRegisterModal(false);
+          setRegStep(1);
+          setRegForm({ name: '', email: '', phone: '', username: '', password: '', plan: 'trial' });
+          setActivationInput('');
+          setPendingSchoolId(null);
+      } else {
+          alert('كود التفعيل غير صحيح. يرجى التواصل مع الإدارة.');
+      }
   };
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
+
+  const getPlanPrice = (plan: SubscriptionPlan) => {
+    switch(plan) {
+        case 'trial': return 0;
+        case 'quarterly': return 100;
+        case 'annual': return 300;
+        default: return 0;
+    }
+  };
 
   if (isLoading) {
       return (
@@ -332,15 +369,15 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             <UserCog size={20} />
         </button>
 
-        {/* Top Right Controls - REPLACED Switcher with Registration Button */}
+        {/* Top Right Controls */}
         <div className="absolute top-4 right-4 z-20 flex gap-4 items-center">
            {isCloudConnected ? (
                <div className="flex items-center gap-1 text-green-600 bg-white px-3 py-1 rounded-full shadow-sm text-xs font-bold border border-green-100" title="متصل بالسحابة">
-                   <Cloud size={14} /> متصل
+                   <Wifi size={14} /> متصل
                </div>
            ) : (
                <div className="flex items-center gap-1 text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm text-xs font-bold border border-gray-100" title="محلي فقط">
-                   <Database size={14} /> محلي
+                   <WifiOff size={14} /> محلي
                </div>
            )}
 
@@ -428,138 +465,116 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
            )}
            
            <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
-               <span>v3.2.0</span>
+               <span>v3.5.0</span>
                <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
                    {schoolMetadata.plan.toUpperCase()} LICENSE
                </span>
            </div>
         </div>
 
-        {/* Registration Modal */}
+        {/* Registration Modal - MULTI STEP */}
         {showRegisterModal && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-slideDown flex flex-col max-h-[90vh]">
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white flex justify-between items-start shrink-0">
                         <div>
                             <h3 className="text-xl font-bold flex items-center gap-2"><School size={24}/> تسجيل مدرسة جديدة</h3>
-                            <p className="text-indigo-100 text-sm mt-1">ابدأ رحلتك التعليمية الرقمية الآن</p>
+                            <p className="text-indigo-100 text-sm mt-1">
+                                {regStep === 1 ? 'البيانات الأساسية' : regStep === 2 ? 'الفاتورة والسداد' : 'التفعيل النهائي'}
+                            </p>
                         </div>
                         <button onClick={() => { setShowRegisterModal(false); setRegStep(1); }} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
                             <X size={20}/>
                         </button>
                     </div>
 
-                    <div className="p-8 space-y-6 overflow-y-auto">
-                        {/* Steps Indicator */}
-                        <div className="flex items-center justify-center gap-4 mb-4">
-                             <div className={`flex items-center gap-2 text-sm font-bold ${regStep === 1 ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${regStep === 1 ? 'border-indigo-600 bg-indigo-50' : 'border-slate-300'}`}>1</div>
-                                 البيانات
-                             </div>
-                             <div className="w-10 h-0.5 bg-slate-200"></div>
-                             <div className={`flex items-center gap-2 text-sm font-bold ${regStep === 2 ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${regStep === 2 ? 'border-indigo-600 bg-indigo-50' : 'border-slate-300'}`}>2</div>
-                                 التفعيل
-                             </div>
-                        </div>
-
-                        {regStep === 1 ? (
-                            <form onSubmit={handleInitiateRegistration} className="space-y-4">
+                    <div className="p-0 overflow-y-auto">
+                        {regStep === 1 && (
+                            <div className="p-8 space-y-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-1">اسم المدرسة</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="text" 
-                                            className="input-modern pl-10"
-                                            placeholder="مثال: مدرسة الأفق العالمية"
-                                            value={regForm.name}
-                                            onChange={(e) => setRegForm({...regForm, name: e.target.value})}
-                                            required
-                                        />
-                                        <School size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                    </div>
+                                    <input type="text" className="input-modern" placeholder="مدرسة..." value={regForm.name} onChange={(e) => setRegForm({...regForm, name: e.target.value})} />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="email" 
-                                            className="input-modern pl-10 text-left"
-                                            dir="ltr"
-                                            placeholder="manager@school.com"
-                                            value={regForm.email}
-                                            onChange={(e) => setRegForm({...regForm, email: e.target.value})}
-                                            required
-                                        />
-                                        <Mail size={18} className="absolute left-3 top-3.5 text-slate-400"/>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">رقم جوال المدير</label>
+                                        <div className="relative">
+                                            <input type="text" className="input-modern pl-10" placeholder="05xxxxxxxx" value={regForm.phone} onChange={(e) => setRegForm({...regForm, phone: e.target.value})} />
+                                            <Smartphone size={18} className="absolute left-3 top-3.5 text-slate-400"/>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                                        <div className="relative">
+                                            <input type="email" className="input-modern pl-10" placeholder="email@..." value={regForm.email} onChange={(e) => setRegForm({...regForm, email: e.target.value})} />
+                                            <Mail size={18} className="absolute left-3 top-3.5 text-slate-400"/>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1">اسم المستخدم</label>
-                                        <div className="relative">
-                                            <input 
-                                                type="text" 
-                                                className="input-modern pl-10 text-left"
-                                                dir="ltr"
-                                                placeholder="admin_user"
-                                                value={regForm.username}
-                                                onChange={(e) => setRegForm({...regForm, username: e.target.value})}
-                                                required
-                                            />
-                                            <User size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                        </div>
+                                        <input type="text" className="input-modern" placeholder="admin" value={regForm.username} onChange={(e) => setRegForm({...regForm, username: e.target.value})} />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1">كلمة المرور</label>
-                                        <div className="relative">
-                                            <input 
-                                                type="password" 
-                                                className="input-modern pl-10 text-left"
-                                                dir="ltr"
-                                                placeholder="****"
-                                                value={regForm.password}
-                                                onChange={(e) => setRegForm({...regForm, password: e.target.value})}
-                                                required
-                                            />
-                                            <Lock size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                        </div>
+                                        <input type="password" className="input-modern" placeholder="****" value={regForm.password} onChange={(e) => setRegForm({...regForm, password: e.target.value})} />
                                     </div>
                                 </div>
-
-                                <button type="submit" disabled={isSendingEmail} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4 disabled:opacity-70">
-                                    {isSendingEmail ? <Loader2 className="animate-spin"/> : <>متابعة وتفعيل <ArrowRight size={20} className="rotate-180"/></>}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">الباقة</label>
+                                    <select className="input-modern" value={regForm.plan} onChange={(e) => setRegForm({...regForm, plan: e.target.value as any})}>
+                                        <option value="trial">تجربة مجانية (أسبوعين) - 0 ريال</option>
+                                        <option value="quarterly">باقة فصلية (3 أشهر) - 100 ريال</option>
+                                        <option value="annual">باقة سنوية (سنة كاملة) - 300 ريال</option>
+                                    </select>
+                                </div>
+                                <button onClick={handleRegisterStep1} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4">
+                                    التالي: الفاتورة <ArrowRight size={20} className="rotate-180"/>
                                 </button>
-                            </form>
-                        ) : (
-                            <form onSubmit={handleVerifyAndRegister} className="space-y-6 text-center animate-fadeIn">
-                                <div className="bg-indigo-50 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-indigo-600 mb-4">
-                                    <Mail size={48} />
+                            </div>
+                        )}
+
+                        {regStep === 2 && (
+                            <InvoiceModal 
+                                schoolName={regForm.name}
+                                plan={regForm.plan}
+                                amount={getPlanPrice(regForm.plan)}
+                                date={new Date().toISOString().split('T')[0]}
+                                invoiceId={invoiceId}
+                                onConfirm={handleRegisterStep2}
+                            />
+                        )}
+
+                        {regStep === 3 && (
+                            <div className="p-8 space-y-6 text-center animate-fadeIn">
+                                <div className="bg-yellow-50 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-yellow-600 mb-4 border border-yellow-200">
+                                    <Lock size={40} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-xl text-slate-800">تفعيل الحساب</h3>
-                                    <p className="text-slate-500 text-sm mt-2">أدخل رمز التحقق المرسل إلى <span className="font-mono text-indigo-600 font-bold">{regForm.email}</span></p>
+                                    <h3 className="font-bold text-xl text-slate-800">التفعيل النهائي</h3>
+                                    <p className="text-slate-500 text-sm mt-2 leading-relaxed">
+                                        تم إرسال طلبك. يرجى إدخال 
+                                        <span className="font-bold text-slate-800"> كود التفعيل </span> 
+                                        الذي حصلت عليه من إدارة النظام لإكمال التسجيل.
+                                    </p>
                                 </div>
                                 
-                                <input 
-                                    type="text" 
-                                    className="w-full text-center text-3xl tracking-[1em] font-mono font-bold border-2 border-slate-200 rounded-xl py-4 focus:border-indigo-500 outline-none transition-all"
-                                    maxLength={4}
-                                    placeholder="0000"
-                                    value={inputCode}
-                                    onChange={(e) => setInputCode(e.target.value)}
-                                    autoFocus
-                                />
-
-                                <div className="flex gap-3">
-                                    <button type="button" onClick={() => setRegStep(1)} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors">
-                                        تعديل البيانات
+                                <form onSubmit={handleRegisterStep3}>
+                                    <input 
+                                        type="text" 
+                                        className="w-full text-center text-3xl tracking-[0.5em] font-mono font-bold border-2 border-slate-200 rounded-xl py-4 focus:border-indigo-500 outline-none transition-all uppercase mb-6"
+                                        placeholder="CODE"
+                                        value={activationInput}
+                                        onChange={(e) => setActivationInput(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2">
+                                        <CheckCircle size={20}/> تفعيل الحساب
                                     </button>
-                                    <button type="submit" className="flex-[2] bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2">
-                                        <CheckCircle size={20}/> تأكيد وإنشاء
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                                <p className="text-xs text-slate-400 mt-4">للحصول على الكود، يرجى التواصل مع الدعم الفني: 920000000</p>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -570,9 +585,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     );
   }
 
-  // Teacher & Admin Views remain similar but with access control checks if needed later
+  // Teacher & Admin Views remain... (unchanged)
   if (view === ViewState.TEACHER && currentTeacher) {
-    return (
+      // ... (Same as before)
+      return (
       <div className="min-h-screen flex flex-col bg-gray-100">
          <div className="bg-gradient-to-r from-green-700 to-emerald-600 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-40">
             <div className="flex items-center gap-3">
@@ -613,7 +629,8 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   }
 
   if (view === ViewState.ADMIN) {
-    return (
+      // ... (Same as before)
+      return (
        <div className="min-h-screen flex flex-col bg-gray-100">
          <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 shadow-lg flex justify-between items-center no-print sticky top-0 z-40">
             <div className="flex items-center gap-3">
@@ -688,27 +705,44 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
   
   // Create School Form State
   const [newSchoolName, setNewSchoolName] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('basic');
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('trial');
   const [durationMonths, setDurationMonths] = useState(12);
 
   const generateLicenseKey = () => {
       return Array.from({length: 4}, () => Math.random().toString(36).substring(2, 6).toUpperCase()).join('-');
+  };
+  
+  const generateActivationCode = () => {
+      return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
   const handleAddSchool = () => {
       if(!newSchoolName) return;
       const startDate = new Date();
       const endDate = new Date(startDate);
-      endDate.setMonth(startDate.getMonth() + durationMonths);
+      
+      // Auto-calculate end date based on plan
+      if (selectedPlan === 'trial') {
+          endDate.setDate(startDate.getDate() + 14);
+      } else if (selectedPlan === 'quarterly') {
+          endDate.setMonth(startDate.getMonth() + 3);
+      } else if (selectedPlan === 'annual') {
+          endDate.setFullYear(startDate.getFullYear() + 1);
+      } else {
+          endDate.setMonth(startDate.getMonth() + durationMonths);
+      }
 
       const newSchool: SchoolMetadata = {
           id: `sch_${Date.now()}`,
           name: newSchoolName,
           createdAt: startDate.toISOString(),
-          isActive: true,
+          isActive: true, // Manual add is active by default
           subscriptionEnd: endDate.toISOString().split('T')[0],
           plan: selectedPlan,
           licenseKey: generateLicenseKey(),
+          activationCode: generateActivationCode(),
+          managerPhone: '',
+          isPaid: true
       };
       onAddSchool(newSchool);
       setNewSchoolName('');
@@ -727,16 +761,16 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
 
   const getPlanBadge = (plan: string) => {
       switch(plan) {
-          case 'basic': return <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">أساسي</span>;
-          case 'pro': return <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-bold">متقدم</span>;
-          case 'enterprise': return <span className="bg-purple-100 text-purple-600 px-2 py-1 rounded text-xs font-bold">مؤسسي</span>;
-          default: return null;
+          case 'trial': return <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs font-bold border border-orange-200">تجربة (14 يوم)</span>;
+          case 'quarterly': return <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-bold border border-blue-200">فصلية (3 أشهر)</span>;
+          case 'annual': return <span className="bg-purple-100 text-purple-600 px-2 py-1 rounded text-xs font-bold border border-purple-200">سنوية</span>;
+          default: return <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold border border-gray-200">{plan}</span>;
       }
   };
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white w-full max-w-6xl rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row h-[80vh]">
+      <div className="bg-white w-full max-w-6xl rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row h-[85vh]">
         {/* Sidebar */}
         <div className="bg-slate-800 text-white p-6 md:w-64 shrink-0 flex flex-col justify-between">
            <div>
@@ -765,6 +799,7 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                         <Cloud className="text-indigo-500"/> إعدادات Firebase
                     </h3>
                     <div className="grid grid-cols-1 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        {/* Config Inputs... (Same as before) */}
                         <div className="space-y-3">
                             <label className="text-xs font-bold text-slate-500">API Config</label>
                             <input type="text" placeholder="apiKey" className="input-field" value={localConfig.apiKey} onChange={e => setLocalConfig({...localConfig, apiKey: e.target.value})} />
@@ -792,9 +827,9 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Add School Card */}
+                    {/* Add School Card (Manual) */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
-                        <h4 className="font-bold text-sm text-slate-600 mb-4 flex items-center gap-2"><PlusCircle size={16}/> تسجيل اشتراك جديد</h4>
+                        <h4 className="font-bold text-sm text-slate-600 mb-4 flex items-center gap-2"><PlusCircle size={16}/> إضافة مدرسة يدوياً (تفعيل مباشر)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                             <div className="md:col-span-2">
                                 <label className="text-xs font-bold text-slate-400 mb-1 block">اسم المدرسة</label>
@@ -809,17 +844,17 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                             <div>
                                 <label className="text-xs font-bold text-slate-400 mb-1 block">الباقة</label>
                                 <select className="input-field" value={selectedPlan} onChange={(e) => setSelectedPlan(e.target.value as any)}>
-                                    <option value="basic">أساسي (Basic)</option>
-                                    <option value="pro">متقدم (Pro)</option>
-                                    <option value="enterprise">مؤسسي (Enterprise)</option>
+                                    <option value="trial">تجربة (14 يوم)</option>
+                                    <option value="quarterly">فصلية (3 أشهر)</option>
+                                    <option value="annual">سنوية (سنة)</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 mb-1 block">المدة</label>
-                                <select className="input-field" value={durationMonths} onChange={(e) => setDurationMonths(Number(e.target.value))}>
-                                    <option value={1}>شهر واحد</option>
+                                <label className="text-xs font-bold text-slate-400 mb-1 block">تخصيص المدة (اختياري)</label>
+                                <select className="input-field" value={durationMonths} onChange={(e) => setDurationMonths(Number(e.target.value))} disabled={selectedPlan !== 'annual' && selectedPlan !== 'quarterly' && selectedPlan !== 'trial'}>
+                                    <option value={12}>تلقائي حسب الباقة</option>
                                     <option value={6}>6 أشهر</option>
-                                    <option value={12}>سنة كاملة</option>
+                                    <option value={24}>سنتين</option>
                                 </select>
                             </div>
                         </div>
@@ -827,62 +862,105 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                             onClick={handleAddSchool}
                             className="w-full mt-4 bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 transition-colors font-bold flex items-center justify-center gap-2"
                         >
-                            <Key size={18}/> إنشاء وإصدار ترخيص
+                            <Key size={18}/> إنشاء ترخيص
                         </button>
                     </div>
 
                     {/* Schools List */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                         {schools.map(s => {
                             const daysLeft = Math.ceil((new Date(s.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
                             const isExpired = daysLeft <= 0;
+                            const progressPercent = Math.min(100, Math.max(0, (daysLeft / 365) * 100)); // Rough calc
 
                             return (
-                                <div key={s.id} className={`bg-white p-5 rounded-xl border-2 transition-all relative group ${isExpired ? 'border-red-100 opacity-90' : 'border-slate-100 hover:border-indigo-200'}`}>
-                                    <div className="flex justify-between items-start mb-3">
-                                         <div>
-                                             <h4 className="font-bold text-slate-800 text-lg">{s.name}</h4>
-                                             <div className="flex items-center gap-2 mt-1">
-                                                {getPlanBadge(s.plan)}
-                                                <span className="text-[10px] text-slate-400 font-mono">{s.id}</span>
+                                <div key={s.id} className={`bg-white rounded-xl border-2 transition-all relative overflow-hidden group ${!s.isActive ? 'border-orange-200 bg-orange-50' : isExpired ? 'border-red-100' : 'border-slate-100 hover:border-indigo-200'}`}>
+                                    {/* Header Status Bar */}
+                                    <div className={`h-1.5 w-full ${!s.isActive ? 'bg-orange-500' : isExpired ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                                    
+                                    <div className="p-5 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                                         {/* 1. Basic Info (4 cols) */}
+                                         <div className="md:col-span-4">
+                                             <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                                        {s.name}
+                                                        {s.isVerified && <CheckCircle size={14} className="text-blue-500" title="تم التحقق من البريد"/>}
+                                                    </h4>
+                                                    <div className="flex items-center gap-2 mt-1.5">
+                                                        {getPlanBadge(s.plan)}
+                                                        <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1 rounded">{s.id}</span>
+                                                    </div>
+                                                </div>
                                              </div>
                                          </div>
-                                         <div className="text-left">
-                                             <span className={`block text-xs font-bold ${isExpired ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                 {isExpired ? 'منتهية الصلاحية' : 'نشطة'}
-                                             </span>
-                                             <span className="text-[10px] text-slate-400">{s.subscriptionEnd}</span>
+
+                                         {/* 2. Admin Info (3 cols) */}
+                                         <div className="md:col-span-3 text-sm">
+                                             <div className="space-y-1">
+                                                 <p className="flex items-center gap-2 text-slate-600">
+                                                     <User size={14} className="text-slate-400"/>
+                                                     <span className="font-bold">{s.adminUsername || '-'}</span>
+                                                 </p>
+                                                 <p className="flex items-center gap-2 text-slate-500 text-xs">
+                                                     <Smartphone size={14} className="text-slate-400"/>
+                                                     {s.managerPhone || 'لا يوجد هاتف'}
+                                                 </p>
+                                                 <p className="flex items-center gap-2 text-slate-500 text-xs">
+                                                     <Mail size={14} className="text-slate-400"/>
+                                                     {s.email || '-'}
+                                                 </p>
+                                             </div>
+                                         </div>
+
+                                         {/* 3. Subscription Status & Code (3 cols) */}
+                                         <div className="md:col-span-3">
+                                             <div className="flex justify-between items-end mb-1">
+                                                 <span className={`text-xs font-bold ${!s.isActive ? 'text-orange-600' : isExpired ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                     {!s.isActive ? 'بانتظار التفعيل' : isExpired ? 'منتهية الصلاحية' : `متبقي ${daysLeft} يوم`}
+                                                 </span>
+                                                 <span className="text-[10px] text-slate-400">{s.subscriptionEnd}</span>
+                                             </div>
+                                             <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-2">
+                                                 <div className={`h-full rounded-full ${!s.isActive ? 'bg-orange-500' : isExpired ? 'bg-red-500' : 'bg-emerald-500'}`} style={{width: `${isExpired ? 100 : progressPercent}%`}}></div>
+                                             </div>
+                                             <div className="flex items-center gap-2 bg-slate-800 text-white p-1.5 rounded border border-slate-700">
+                                                 <Key size={12} className="text-yellow-400"/>
+                                                 <span className="text-[10px] text-slate-400">كود التفعيل:</span>
+                                                 <code className="text-xs font-mono font-bold text-yellow-400 flex-1">{s.activationCode || 'N/A'}</code>
+                                             </div>
+                                         </div>
+
+                                         {/* 4. Actions (2 cols) */}
+                                         <div className="md:col-span-2 flex flex-col gap-2">
+                                             <div className="flex gap-1">
+                                                 <button onClick={() => handleRenew(s, 12)} className="flex-1 text-[10px] bg-indigo-50 text-indigo-700 py-1.5 rounded hover:bg-indigo-100 font-bold transition-colors">+سنة</button>
+                                                 <button onClick={() => handleRenew(s, 1)} className="flex-1 text-[10px] bg-indigo-50 text-indigo-700 py-1.5 rounded hover:bg-indigo-100 font-bold transition-colors">+شهر</button>
+                                             </div>
+                                             <div className="flex gap-2">
+                                                 <button 
+                                                    onClick={() => onUpdateSchool({...s, isActive: !s.isActive})} 
+                                                    className={`flex-1 py-1.5 rounded text-xs font-bold transition-colors ${s.isActive ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                                 >
+                                                     {s.isActive ? 'تجميد' : 'تفعيل'}
+                                                 </button>
+                                                 <button onClick={() => { if(window.confirm('حذف نهائي للمدرسة وكل بياناتها؟')) onDeleteSchool(s.id) }} className="p-1.5 rounded bg-rose-50 text-rose-500 hover:bg-rose-100" title="حذف">
+                                                     <Trash2 size={16}/>
+                                                 </button>
+                                             </div>
                                          </div>
                                     </div>
                                     
-                                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-4 flex justify-between items-center">
-                                        <code className="text-xs font-mono text-slate-600">{s.licenseKey || 'NO-LICENSE'}</code>
-                                        <button className="text-slate-400 hover:text-indigo-600" title="نسخ"><Copy size={14}/></button>
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleRenew(s, 1)} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-100 font-bold">+شهر</button>
-                                            <button onClick={() => handleRenew(s, 12)} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-100 font-bold">+سنة</button>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => onUpdateSchool({...s, isActive: !s.isActive})} className={`p-2 rounded-lg ${s.isActive ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`} title="تجميد/تنشيط">
-                                                <Power size={16}/>
-                                            </button>
-                                            <button onClick={() => { if(window.confirm('حذف نهائي؟')) onDeleteSchool(s.id) }} className="p-2 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100" title="حذف">
-                                                <Trash2 size={16}/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {isExpired && (
-                                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center rounded-xl pointer-events-none group-hover:hidden">
-                                            <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg transform -rotate-12">منتهية</span>
+                                    {/* Overlay for inactive states */}
+                                    {!s.isActive && (
+                                        <div className="absolute top-2 left-2 pointer-events-none">
+                                            <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm animate-pulse">غير مفعلة</span>
                                         </div>
                                     )}
                                 </div>
                             );
                         })}
-                        {schools.length === 0 && <p className="text-center text-slate-400 col-span-full py-10">لا توجد مدارس مضافة</p>}
+                        {schools.length === 0 && <p className="text-center text-slate-400 col-span-full py-20">لا توجد مدارس مضافة</p>}
                     </div>
                 </section>
             )}
@@ -912,14 +990,16 @@ const App: React.FC = () => {
     const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
         try {
             const saved = localStorage.getItem('sys_schools');
-            // Migration logic for old data format
             const parsed = saved ? JSON.parse(saved) : [];
+            // Migration for old data
             if (parsed.length > 0 && !parsed[0].plan) {
                 return parsed.map((s: any) => ({
                     ...s, 
-                    plan: 'basic', 
+                    plan: 'trial', 
                     subscriptionEnd: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-                    licenseKey: 'MIGRATED-LEGACY'
+                    licenseKey: 'MIGRATED-LEGACY',
+                    activationCode: '0000',
+                    isPaid: true
                 }));
             }
             return parsed.length ? parsed : [{ 
@@ -927,9 +1007,12 @@ const App: React.FC = () => {
                 name: 'المدرسة الافتراضية', 
                 createdAt: new Date().toISOString(), 
                 isActive: true,
-                plan: 'basic',
+                plan: 'trial',
                 subscriptionEnd: '2030-01-01',
-                licenseKey: 'FREE-TIER-DEFAULT'
+                licenseKey: 'FREE-TIER-DEFAULT',
+                activationCode: '1234',
+                managerPhone: '0500000000',
+                isPaid: true
             }];
         } catch {
              return [{ 
@@ -937,9 +1020,12 @@ const App: React.FC = () => {
                 name: 'المدرسة الافتراضية', 
                 createdAt: new Date().toISOString(), 
                 isActive: true,
-                plan: 'basic',
+                plan: 'trial',
                 subscriptionEnd: '2030-01-01',
-                licenseKey: 'FREE-TIER-DEFAULT'
+                licenseKey: 'FREE-TIER-DEFAULT',
+                activationCode: '1234',
+                managerPhone: '0500000000',
+                isPaid: true
              }];
         }
     });
@@ -948,14 +1034,14 @@ const App: React.FC = () => {
     const [isSystemAdminOpen, setIsSystemAdminOpen] = useState(false);
     const [isCloudConnected, setIsCloudConnected] = useState(false);
 
-    // Persist System Config
+    // Persist System Config Locally
     useEffect(() => {
         localStorage.setItem('sys_firebase_config', JSON.stringify(firebaseConfig));
         localStorage.setItem('sys_schools', JSON.stringify(schools));
         localStorage.setItem('sys_current_school', currentSchoolId);
     }, [firebaseConfig, schools, currentSchoolId]);
 
-    // Initialize Cloud
+    // Initialize Cloud Connection
     useEffect(() => {
         if (firebaseConfig.apiKey) {
             const success = initFirebase(firebaseConfig);
@@ -963,33 +1049,85 @@ const App: React.FC = () => {
         }
     }, [firebaseConfig]);
 
+    // --- NEW: Global System Data Synchronization ---
+    // Load Global Schools Registry from Firebase on Connect
+    useEffect(() => {
+        const syncSystem = async () => {
+            if (isCloudConnected) {
+                const cloudSchools = await loadSystemData('schools_registry');
+                if (cloudSchools && Array.isArray(cloudSchools)) {
+                    // Update local state with cloud state
+                    // Note: This simple approach assumes cloud is the source of truth when connected.
+                    setSchools(cloudSchools);
+                }
+            }
+        };
+        syncSystem();
+    }, [isCloudConnected]);
+
+    // Save Global Schools Registry to Firebase on Change
+    useEffect(() => {
+        if (isCloudConnected && schools.length > 0) {
+            const timeout = setTimeout(() => {
+                saveSystemData('schools_registry', schools);
+            }, 2000); // 2s debounce to prevent spamming
+            return () => clearTimeout(timeout);
+        }
+    }, [schools, isCloudConnected]);
+    // ------------------------------------------------
+
     const activeSchool = schools.find(s => s.id === currentSchoolId) || schools[0];
 
     const generateLicenseKey = () => {
         return Array.from({length: 4}, () => Math.random().toString(36).substring(2, 6).toUpperCase()).join('-');
     };
 
+    const generateActivationCode = () => {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+    };
+
+    // Register Handler: Adds school but keeps it inactive
     const handleRegisterNewSchool = (data: Partial<SchoolMetadata>) => {
         const startDate = new Date();
         const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 30); // 30 Days Trial
+        
+        if (data.plan === 'trial') {
+            endDate.setDate(startDate.getDate() + 14);
+        } else if (data.plan === 'quarterly') {
+            endDate.setMonth(startDate.getMonth() + 3);
+        } else {
+            endDate.setFullYear(startDate.getFullYear() + 1);
+        }
 
         const newSchool: SchoolMetadata = {
-            id: `sch_${Date.now()}`,
+            id: data.id || `sch_${Date.now()}`,
             name: data.name || 'New School',
             createdAt: startDate.toISOString(),
-            isActive: true,
+            isActive: data.isActive || false,
             subscriptionEnd: endDate.toISOString().split('T')[0],
-            plan: 'basic',
+            plan: data.plan || 'trial',
             licenseKey: generateLicenseKey(),
+            activationCode: generateActivationCode(),
             email: data.email,
+            managerPhone: data.managerPhone || '',
             adminUsername: data.adminUsername,
             adminPassword: data.adminPassword,
-            isVerified: true
+            isVerified: true,
+            isPaid: data.isPaid || false
         };
 
         setSchools(prev => [...prev, newSchool]);
-        setCurrentSchoolId(newSchool.id);
+        // Note: Do NOT set current school ID yet until activated in logic
+    };
+
+    const handleActivateSchool = (id: string, code: string) => {
+        const school = schools.find(s => s.id === id);
+        if (school && school.activationCode === code) {
+            setSchools(prev => prev.map(s => s.id === id ? { ...s, isActive: true, isPaid: true } : s));
+            setCurrentSchoolId(id);
+            return true;
+        }
+        return false;
     };
 
     return (
@@ -1021,6 +1159,7 @@ const App: React.FC = () => {
                     onOpenSystemAdmin={() => setIsSystemAdminOpen(true)}
                     isCloudConnected={isCloudConnected}
                     onRegisterSchool={handleRegisterNewSchool}
+                    onActivateSchool={handleActivateSchool}
                 />
             )}
         </ErrorBoundary>

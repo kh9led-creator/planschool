@@ -54,3 +54,32 @@ export const loadSchoolData = async (schoolId: string, collectionName: string) =
     return null;
   }
 };
+
+// --- NEW: System Level Sync (For Global School Registry) ---
+
+export const saveSystemData = async (key: string, data: any) => {
+  if (!db) return;
+  try {
+    // Storing in a separate collection 'system' to differentiate from 'schools'
+    // Structure: system/registry/settings/{key}
+    const docRef = doc(db, 'system', 'registry', 'settings', key); 
+    await setDoc(docRef, { value: data }, { merge: true });
+  } catch (e) {
+    console.error(`Error saving system data ${key}:`, e);
+  }
+};
+
+export const loadSystemData = async (key: string) => {
+  if (!db) return null;
+  try {
+    const docRef = doc(db, 'system', 'registry', 'settings', key);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().value;
+    }
+    return null;
+  } catch (e) {
+    console.error(`Error loading system data ${key}:`, e);
+    return null;
+  }
+};

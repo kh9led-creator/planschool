@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User } from 'lucide-react';
+import AttendanceReportTemplate from './AttendanceReportTemplate';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3 } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 
 interface AdminDashboardProps {
@@ -132,6 +133,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Archive Viewing State
   const [viewingArchive, setViewingArchive] = useState<ArchivedPlan | null>(null);
+
+  // Attendance Printing State
+  const [printAttendanceClass, setPrintAttendanceClass] = useState<ClassGroup | null>(null);
 
   // Search Terms
   const [studentSearch, setStudentSearch] = useState('');
@@ -485,6 +489,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
   };
 
+  // Helper to get absent students for a specific class on selected date
+  const getAbsentStudentsForClass = (classId: string) => {
+      return students.filter(s => 
+          s.classId === classId && 
+          attendanceRecords.some(r => r.studentId === s.id && r.date === attendanceDate && r.status === 'absent')
+      );
+  };
+
   // Messages Logic
   const handleAdminSendMessage = () => {
       if(!newMessageText.trim()) return;
@@ -576,7 +588,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="max-w-7xl mx-auto px-4 print:max-w-none print:px-0 pb-20 pt-6">
         
         {/* GLOBAL CLASS SELECTOR (Hidden in print & certain tabs) */}
-        {activeTab !== 'archive' && activeTab !== 'messages' && activeTab !== 'setup' && (
+        {activeTab !== 'archive' && activeTab !== 'messages' && activeTab !== 'setup' && activeTab !== 'attendance' && (
             <div className="mb-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4 no-print animate-slideDown">
                 <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">
                     <LayoutDashboard size={24} />
@@ -1101,7 +1113,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
              </div>
         )}
 
-        {/* --- SETUP TAB (Updated with Save Button) --- */}
+        {/* --- SETUP TAB --- */}
         {activeTab === 'setup' && (
              <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto">
                  {/* School Info */}
@@ -1301,14 +1313,135 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* Placeholder Tabs */}
+        {/* --- ATTENDANCE TAB (Fully Implemented) --- */}
         {(activeTab === 'attendance') && (
-             <div className="min-h-[400px] bg-white rounded-3xl shadow-sm border border-slate-200 p-10 flex flex-col items-center justify-center text-slate-400 animate-fadeIn">
-                 <div className="bg-slate-50 p-6 rounded-full mb-4">
-                    {activeTab === 'attendance' && <Users size={48}/>}
+             <div className="animate-fadeIn space-y-6">
+                 
+                 {/* 1. Controls Bar */}
+                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center gap-4">
+                     <div className="flex items-center gap-3">
+                         <div className="bg-indigo-100 p-2.5 rounded-xl text-indigo-600">
+                             <Calendar size={20} />
+                         </div>
+                         <div>
+                             <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ اليوم</label>
+                             <input 
+                                type="date" 
+                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400"
+                                value={attendanceDate}
+                                onChange={(e) => setAttendanceDate(e.target.value)}
+                             />
+                         </div>
+                     </div>
+                     <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block"></div>
+                     <div className="flex-1">
+                         <h2 className="font-bold text-lg text-slate-800">سجل الحضور والغياب</h2>
+                         <p className="text-xs text-slate-500">متابعة الغياب اليومي وطباعة الكشوفات</p>
+                     </div>
                  </div>
-                 <h3 className="text-2xl font-bold text-slate-300">قريباً: تحسين واجهة {activeTab === 'attendance' ? 'الغياب' : ''}</h3>
-                 <p className="text-slate-400 mt-2">الوظائف تعمل، لكن التصميم قيد التحديث.</p>
+
+                 {/* 2. Classes Grid */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {classes.length === 0 ? (
+                         <div className="col-span-full py-12 text-center text-slate-400">
+                             <Users size={48} className="mx-auto mb-3 opacity-50"/>
+                             <p>لا يوجد فصول لعرضها</p>
+                         </div>
+                     ) : (
+                         classes.map(cls => {
+                             const absentStudents = getAbsentStudentsForClass(cls.id);
+                             const totalStudents = students.filter(s => s.classId === cls.id).length;
+                             const hasAbsence = absentStudents.length > 0;
+
+                             return (
+                                 <div key={cls.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group">
+                                     <div className="p-5 border-b border-slate-100 flex justify-between items-start">
+                                         <div>
+                                             <h3 className="font-bold text-lg text-slate-800">{cls.name}</h3>
+                                             <p className="text-xs text-slate-400 mt-1">{totalStudents} طالب مسجل</p>
+                                         </div>
+                                         <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${hasAbsence ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                             {hasAbsence ? (
+                                                 <><XCircle size={14}/> {absentStudents.length} غياب</>
+                                             ) : (
+                                                 <><CheckCircle size={14}/> حضور كامل</>
+                                             )}
+                                         </div>
+                                     </div>
+                                     
+                                     {/* Absence Preview (First 3 names) */}
+                                     <div className="p-5 bg-slate-50/50 h-32 overflow-hidden relative">
+                                         {hasAbsence ? (
+                                             <ul className="space-y-2">
+                                                 {absentStudents.slice(0, 3).map(s => (
+                                                     <li key={s.id} className="flex items-center gap-2 text-sm text-slate-600">
+                                                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                                                         {s.name}
+                                                     </li>
+                                                 ))}
+                                                 {absentStudents.length > 3 && (
+                                                     <li className="text-xs text-slate-400 italic pr-4">+ {absentStudents.length - 3} آخرين...</li>
+                                                 )}
+                                             </ul>
+                                         ) : (
+                                             <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                                                 <CheckCircle size={32} className="mb-2 opacity-50"/>
+                                                 <span className="text-xs">لم يتم تسجيل غياب</span>
+                                             </div>
+                                         )}
+                                     </div>
+
+                                     <div className="p-4 bg-white border-t border-slate-100">
+                                         <button 
+                                            onClick={() => setPrintAttendanceClass(cls)}
+                                            className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all flex items-center justify-center gap-2"
+                                         >
+                                             <Printer size={16}/> طباعة كشف الغياب
+                                         </button>
+                                     </div>
+                                 </div>
+                             );
+                         })
+                     )}
+                 </div>
+
+                 {/* 3. Print Modal */}
+                 {printAttendanceClass && (
+                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 overflow-hidden">
+                         <div className="bg-white w-full max-w-4xl h-[95vh] rounded-2xl flex flex-col shadow-2xl animate-slideDown overflow-hidden">
+                             <div className="bg-slate-800 text-white p-4 flex justify-between items-center shrink-0">
+                                 <div>
+                                     <h3 className="font-bold text-lg flex items-center gap-2">
+                                         <Printer size={20} className="text-emerald-400"/> 
+                                         كشف الغياب: {printAttendanceClass.name}
+                                     </h3>
+                                     <p className="text-xs text-slate-400 mt-0.5">{attendanceDate}</p>
+                                 </div>
+                                 <div className="flex items-center gap-3">
+                                     <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+                                         <Printer size={14}/> طباعة
+                                     </button>
+                                     <button onClick={() => setPrintAttendanceClass(null)} className="bg-rose-500 hover:bg-rose-600 p-2 rounded-full transition-colors">
+                                         <X size={18}/>
+                                     </button>
+                                 </div>
+                             </div>
+                             
+                             <div className="flex-1 overflow-auto bg-slate-100 p-8 flex justify-center">
+                                 {/* Using scale to fit A4 in modal view if needed */}
+                                 <div className="origin-top scale-[0.85] md:scale-100 transition-transform">
+                                     <AttendanceReportTemplate 
+                                        schoolSettings={schoolSettings}
+                                        classGroup={printAttendanceClass}
+                                        teacherName="إدارة النظام / وكيل شؤون الطلاب" 
+                                        date={attendanceDate}
+                                        absentStudents={getAbsentStudentsForClass(printAttendanceClass.id)}
+                                     />
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 )}
              </div>
         )}
 
