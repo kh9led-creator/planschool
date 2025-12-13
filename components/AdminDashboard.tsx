@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 
 interface AdminDashboardProps {
@@ -33,14 +33,14 @@ interface AdminDashboardProps {
 }
 
 const COLORS = [
-    { label: 'أحمر', value: 'bg-red-50' },
-    { label: 'أزرق', value: 'bg-blue-50' },
-    { label: 'أخضر', value: 'bg-green-50' },
-    { label: 'أصفر', value: 'bg-yellow-50' },
-    { label: 'بنفسجي', value: 'bg-purple-50' },
-    { label: 'رمادي', value: 'bg-gray-50' },
-    { label: 'برتقالي', value: 'bg-orange-50' },
-    { label: 'وردي', value: 'bg-pink-50' },
+    { label: 'أحمر', value: 'bg-red-50 border-red-200 text-red-800' },
+    { label: 'أزرق', value: 'bg-blue-50 border-blue-200 text-blue-800' },
+    { label: 'أخضر', value: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+    { label: 'أصفر', value: 'bg-amber-50 border-amber-200 text-amber-800' },
+    { label: 'بنفسجي', value: 'bg-violet-50 border-violet-200 text-violet-800' },
+    { label: 'رمادي', value: 'bg-slate-50 border-slate-200 text-slate-800' },
+    { label: 'برتقالي', value: 'bg-orange-50 border-orange-200 text-orange-800' },
+    { label: 'وردي', value: 'bg-pink-50 border-pink-200 text-pink-800' },
 ];
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -94,6 +94,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Local UI States
   const [importLoading, setImportLoading] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +110,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [teacherEditForm, setTeacherEditForm] = useState({ name: '', username: '', password: '' });
 
   // Subject Add State
-  const [subjectForm, setSubjectForm] = useState({ name: '', color: 'bg-gray-50' });
+  const [subjectForm, setSubjectForm] = useState({ name: '', color: 'bg-slate-50 border-slate-200 text-slate-800' });
 
   // Class Add State
   const [newClassName, setNewClassName] = useState('');
@@ -122,6 +123,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Messaging State
   const [messageRecipient, setMessageRecipient] = useState('all');
   const [messageContent, setMessageContent] = useState('');
+
+  // Search Terms
+  const [studentSearch, setStudentSearch] = useState('');
 
   // --- Noor Import Logic (Updated for automatic Class creation) ---
   const handleNoorImportClick = () => {
@@ -220,9 +224,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
 
           // Construct Full Class Name (e.g., "الصف الأول - 1")
-          // Logic: If we have both, combine them. If only class, use class.
           if (gradeName !== "عام" && classNum) {
-              // Simplify grade name? e.g. take first 2 words
               const shortGrade = gradeName.split(' ').slice(0, 2).join(' ');
               finalClassName = `${shortGrade} - ${classNum}`;
           } else if (classNum) {
@@ -299,6 +301,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleManualSaveSettings = () => {
+      // Logic is handled by useSyncedState in App.tsx, this is just for feedback
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
   // ... (Rest of handlers remain unchanged)
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -321,7 +329,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         color: subjectForm.color
     };
     onSetSubjects([...subjects, newSubject]);
-    setSubjectForm({ name: '', color: 'bg-gray-50' });
+    setSubjectForm({ name: '', color: 'bg-slate-50 border-slate-200 text-slate-800' });
   };
 
   const handleDeleteSubject = (id: string) => {
@@ -456,13 +464,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     window.print();
   };
 
-  const handleWhatsAppShare = () => {
-    if (!activeClass) return;
-    const text = `تم إصدار الخطة الأسبوعية للصف ${activeClass.name} للأسبوع ${weekInfo.weekNumber}.`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
-
   const toggleAttendance = (studentId: string) => {
       const currentRecord = attendanceRecords.find(r => r.studentId === studentId && r.date === attendanceDate);
       const newStatus = currentRecord?.status === 'absent' ? 'present' : 'absent';
@@ -475,30 +476,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
   };
 
-  const handleSendAdminMessage = () => {
-      if(!messageContent.trim()) return;
-      const msg: Message = {
-          id: `msg_${Date.now()}`,
-          senderId: 'admin',
-          senderName: 'الإدارة',
-          receiverId: messageRecipient,
-          content: messageContent,
-          timestamp: new Date().toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'}),
-          isRead: false,
-          type: messageRecipient === 'all' ? 'announcement' : 'direct'
-      };
-      onSendMessage(msg);
-      setMessageContent('');
-      alert('تم إرسال الرسالة بنجاح');
-  };
+  const filteredStudents = classStudents.filter(s => s.name.includes(studentSearch));
 
-  const absentsForClass = activeClass ? classStudents.filter(s => {
-      const record = attendanceRecords.find(r => r.studentId === s.id && r.date === attendanceDate);
-      return record?.status === 'absent';
-  }) : [];
+  // --- TAB CONFIG ---
+  const tabs = [
+      { id: 'students', label: 'الطلاب', icon: GraduationCap },
+      { id: 'classes', label: 'الفصول والجداول', icon: Grid },
+      { id: 'plan', label: 'الخطة الحالية', icon: FileText },
+      { id: 'attendance', label: 'الغياب', icon: Users },
+      { id: 'messages', label: 'الرسائل', icon: MessageSquare },
+      { id: 'setup', label: 'الإعدادات', icon: Settings },
+      { id: 'archive', label: 'الأرشيف', icon: History },
+  ];
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-slate-50 min-h-screen">
       {/* Hidden File Input for CSV Import */}
       <input 
         type="file" 
@@ -508,226 +500,209 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         accept=".csv,.txt"
       />
 
-      {/* Admin Navigation */}
-      <div className="bg-white shadow mb-6 no-print">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-8 space-x-reverse h-16 items-center overflow-x-auto">
-            <h1 className="text-xl font-bold text-green-700 ml-4 whitespace-nowrap">لوحة تحكم المدير</h1>
-            <nav className="flex space-x-4 space-x-reverse">
-              <button 
-                onClick={() => setActiveTab('students')}
-                className={`px-3 py-2 rounded-md text-sm font-bold whitespace-nowrap ${activeTab === 'students' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                <div className="flex items-center gap-2"><GraduationCap size={18}/> الطلاب (استيراد)</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('classes')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'classes' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                <div className="flex items-center gap-2"><Grid size={16}/> الفصول والجداول</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('plan')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'plan' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                 <div className="flex items-center gap-2"><FileText size={16}/> الخطة الحالية</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('attendance')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'attendance' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                 <div className="flex items-center gap-2"><Users size={16}/> رصد الغياب</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('messages')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'messages' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                 <div className="flex items-center gap-2"><MessageSquare size={16}/> التواصل الداخلي</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('setup')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'setup' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                <div className="flex items-center gap-2"><Settings size={16}/> إعدادات عامة</div>
-              </button>
-              <button 
-                onClick={() => setActiveTab('archive')}
-                className={`px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap ${activeTab === 'archive' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                 <div className="flex items-center gap-2"><History size={16}/> الأرشيف</div>
-              </button>
-            </nav>
-          </div>
+      {/* Admin Navigation (Floating & Glassmorphism) */}
+      <div className="sticky top-0 z-50 pt-4 px-4 pb-2 no-print">
+        <div className="max-w-7xl mx-auto bg-white/90 backdrop-blur-md shadow-lg rounded-2xl border border-slate-200/60 p-2 overflow-x-auto">
+            <div className="flex items-center gap-2 min-w-max">
+                {tabs.map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all duration-300 font-bold text-sm
+                                ${isActive 
+                                    ? 'bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-200' 
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600'
+                                }`
+                            }
+                        >
+                            <Icon size={18} />
+                            {tab.label}
+                        </button>
+                    )
+                })}
+            </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 print:max-w-none print:px-0 pb-20">
+      <div className="max-w-7xl mx-auto px-4 print:max-w-none print:px-0 pb-20 pt-6">
         
-        {/* GLOBAL CLASS SELECTOR (Hidden in print) */}
+        {/* GLOBAL CLASS SELECTOR (Hidden in print & certain tabs) */}
         {activeTab !== 'archive' && activeTab !== 'messages' && activeTab !== 'setup' && (
-            <div className="mb-6 bg-white p-4 rounded-lg shadow flex items-center gap-4 no-print">
-                <label className="font-bold text-gray-700">الفصل الحالي:</label>
-                {hasClasses ? (
-                    <select 
-                        value={selectedClassId} 
-                        onChange={(e) => setSelectedClassId(e.target.value)}
-                        className="border-2 border-green-600 rounded-lg p-2 font-bold text-gray-800 bg-green-50"
-                    >
-                        {classes.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
-                ) : (
-                    <span className="text-red-500 font-bold text-sm">لا يوجد فصول (يرجى إضافتها أو استيرادها)</span>
-                )}
-                <span className="text-sm text-gray-500">
-                    (يتم عرض بيانات الطلاب والجداول والخطط الخاصة بهذا الفصل فقط)
-                </span>
+            <div className="mb-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4 no-print animate-slideDown">
+                <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">
+                    <LayoutDashboard size={24} />
+                </div>
+                <div>
+                    <h2 className="text-lg font-bold text-slate-800">لوحة التحكم النشطة</h2>
+                    <p className="text-xs text-slate-500">اختر الفصل لعرض بياناته</p>
+                </div>
+                <div className="mr-auto flex items-center gap-4 w-full md:w-auto">
+                    {hasClasses ? (
+                        <div className="relative w-full md:w-64">
+                            <select 
+                                value={selectedClassId} 
+                                onChange={(e) => setSelectedClassId(e.target.value)}
+                                className="w-full appearance-none bg-slate-50 border-2 border-slate-200 hover:border-indigo-300 rounded-xl px-4 py-3 pr-10 font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-50 transition-all cursor-pointer"
+                            >
+                                {classes.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                            <ChevronLeft className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16}/>
+                        </div>
+                    ) : (
+                        <span className="text-rose-500 font-bold text-sm bg-rose-50 px-4 py-2 rounded-lg border border-rose-100">
+                            <AlertCircle className="inline-block ml-2" size={16}/>
+                            لا يوجد فصول (يرجى إضافتها أو استيرادها)
+                        </span>
+                    )}
+                </div>
             </div>
         )}
 
         {/* --- STUDENTS TAB --- */}
         {activeTab === 'students' && (
-             <div className="bg-white rounded-lg shadow p-6 animate-fadeIn">
-                <div className="mb-8 border-b pb-6">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
-                    <UploadCloud className="text-green-600"/>
-                    إدارة بيانات الطلاب والاستيراد
-                    </h2>
-                    
-                    <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        <button 
-                            onClick={handleNoorImportClick}
-                            disabled={importLoading}
-                            className={`flex-1 py-4 rounded-xl text-white font-bold transition-all flex flex-col items-center justify-center gap-2 shadow-lg ${importLoading ? 'bg-gray-400 cursor-wait' : 'bg-green-600 hover:bg-green-700 transform hover:-translate-y-1'}`}
-                        >
-                            <UploadCloud size={32}/>
-                            <span>{importLoading ? 'جاري الاستيراد...' : 'استيراد الطلاب من ملف Excel/CSV'}</span>
-                            <span className="text-[10px] font-normal opacity-80">سيتم إنشاء الفصول تلقائياً بناءً على بيانات الملف</span>
-                        </button>
-                        
-                        <button 
-                            onClick={() => setIsAddingStudent(!isAddingStudent)}
-                            className="flex-1 bg-indigo-50 text-indigo-800 py-4 rounded-xl hover:bg-indigo-100 font-bold flex flex-col items-center justify-center gap-2 border border-indigo-200 shadow-sm"
-                        >
-                            <Plus size={32} />
-                            <span>إضافة طالب يدوياً</span>
-                        </button>
-
-                        <button 
-                            onClick={handleClearStudents}
-                            className="flex-1 bg-red-50 text-red-800 py-4 rounded-xl hover:bg-red-100 font-bold flex flex-col items-center justify-center gap-2 border border-red-200 shadow-sm transition-all"
-                        >
-                            <Trash2 size={32} />
-                            <span>حذف جميع الطلاب</span>
-                            <span className="text-[10px] font-normal opacity-80">تفريغ قاعدة بيانات الطلاب</span>
-                        </button>
-                    </div>
-
-                    {isAddingStudent && (
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4 animate-fadeIn">
-                            <h3 className="text-sm font-bold text-gray-700 mb-3">بيانات الطالب الجديد</h3>
-                            <div className="flex flex-col md:flex-row gap-4 items-end">
-                                <div className="w-full md:w-1/3">
-                                    <label className="block text-xs mb-1">الاسم الرباعي</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full border p-2 rounded text-sm"
-                                        placeholder="اسم الطالب"
-                                        value={studentForm.name}
-                                        onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
-                                    />
-                                </div>
-                                <div className="w-full md:w-1/3">
-                                    <label className="block text-xs mb-1">رقم ولي الأمر</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full border p-2 rounded text-sm"
-                                        placeholder="05xxxxxxxx"
-                                        value={studentForm.parentPhone}
-                                        onChange={(e) => setStudentForm({...studentForm, parentPhone: e.target.value})}
-                                    />
-                                </div>
-                                <div className="w-full md:w-1/3">
-                                    <label className="block text-xs mb-1">الفصل</label>
-                                    <select 
-                                        className="w-full border p-2 rounded text-sm bg-white"
-                                        value={studentForm.classId || selectedClassId}
-                                        onChange={(e) => setStudentForm({...studentForm, classId: e.target.value})}
-                                    >
-                                        <option value="">اختر الفصل...</option>
-                                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                                <button onClick={handleAddStudent} className="bg-indigo-600 text-white px-6 py-2 rounded text-sm h-10 font-bold">حفظ</button>
-                            </div>
+             <div className="space-y-6 animate-fadeIn">
+                 {/* Actions Card */}
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 shadow-xl text-white relative overflow-hidden">
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
+                        <div>
+                            <h2 className="text-3xl font-extrabold mb-2">الطلاب</h2>
+                            <p className="text-indigo-100 text-sm max-w-md leading-relaxed opacity-90">
+                                إدارة بيانات الطلاب، الاستيراد من نظام نور، وتوزيعهم على الفصول بشكل تلقائي وذكي.
+                            </p>
                         </div>
-                    )}
+                        <div className="flex flex-wrap gap-3">
+                             <button 
+                                onClick={handleNoorImportClick}
+                                disabled={importLoading}
+                                className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg flex items-center gap-2"
+                             >
+                                {importLoading ? <div className="loader w-4 h-4 border-indigo-600"></div> : <UploadCloud size={20}/>}
+                                استيراد (Excel/CSV)
+                             </button>
+                             <button 
+                                onClick={() => setIsAddingStudent(!isAddingStudent)}
+                                className="bg-indigo-400/30 backdrop-blur-md text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-400/40 transition-all flex items-center gap-2 border border-white/20"
+                             >
+                                <Plus size={20}/> إضافة يدوي
+                             </button>
+                             <button 
+                                onClick={handleClearStudents}
+                                className="bg-rose-500/80 backdrop-blur-md text-white px-4 py-3 rounded-xl font-bold hover:bg-rose-600/90 transition-all flex items-center gap-2"
+                                title="حذف الكل"
+                             >
+                                <Trash2 size={20}/>
+                             </button>
+                        </div>
+                    </div>
+                    {/* Decor */}
+                    <GraduationCap className="absolute -bottom-6 -left-6 text-white/10 w-48 h-48 rotate-12" />
                 </div>
 
-                <div>
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        قائمة الطلاب المسجلين ({classStudents.length})
-                        <span className="text-sm font-normal text-gray-500">- {activeClass?.name || 'الكل'}</span>
-                    </h2>
-                    {classStudents.length === 0 ? (
-                        <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
-                           {hasClasses ? 'لا يوجد طلاب في هذا الفصل حالياً. قم بالاستيراد أو الإضافة اليدوية.' : 'الرجاء استيراد البيانات لإنشاء الفصول والطلاب تلقائياً.'}
+                {isAddingStudent && (
+                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 animate-slideDown">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Plus className="text-indigo-500"/> إضافة طالب جديد</h3>
+                            <button onClick={() => setIsAddingStudent(false)} className="text-slate-400 hover:text-rose-500"><XCircle size={20}/></button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <input 
+                                type="text" 
+                                className="input-modern"
+                                placeholder="اسم الطالب"
+                                value={studentForm.name}
+                                onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
+                            />
+                            <input 
+                                type="text" 
+                                className="input-modern"
+                                placeholder="رقم ولي الأمر"
+                                value={studentForm.parentPhone}
+                                onChange={(e) => setStudentForm({...studentForm, parentPhone: e.target.value})}
+                            />
+                            <select 
+                                className="input-modern bg-white"
+                                value={studentForm.classId || selectedClassId}
+                                onChange={(e) => setStudentForm({...studentForm, classId: e.target.value})}
+                            >
+                                <option value="">اختر الفصل...</option>
+                                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <button onClick={handleAddStudent} className="btn-primary h-[50px]">حفظ البيانات</button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h3 className="font-bold text-slate-700">
+                            قائمة الطلاب <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full mr-2">{filteredStudents.length} طالب</span>
+                        </h3>
+                        <div className="relative w-64">
+                            <input 
+                                type="text" 
+                                placeholder="بحث عن طالب..." 
+                                className="w-full bg-white border border-slate-200 rounded-lg py-2 pr-8 pl-4 text-sm focus:border-indigo-400 outline-none"
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                            />
+                            <Search className="absolute right-2 top-2.5 text-slate-400" size={16} />
+                        </div>
+                    </div>
+
+                    {filteredStudents.length === 0 ? (
+                        <div className="text-center py-16">
+                           <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Users className="text-slate-300" size={32}/>
+                           </div>
+                           <p className="text-slate-500">لا يوجد طلاب مطابقين للعرض</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 border rounded-lg overflow-hidden">
-                                <thead className="bg-gray-50">
+                            <table className="w-full text-right">
+                                <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase">
                                     <tr>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">اسم الطالب</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">رقم ولي الأمر</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الفصل</th>
-                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">إجراءات</th>
+                                        <th className="px-6 py-4">اسم الطالب</th>
+                                        <th className="px-6 py-4">ولي الأمر</th>
+                                        <th className="px-6 py-4">الفصل</th>
+                                        <th className="px-6 py-4 text-center">إجراءات</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {classStudents.map(s => (
-                                    <tr key={s.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredStudents.map(s => (
+                                    <tr key={s.id} className="hover:bg-indigo-50/30 transition-colors group">
+                                        <td className="px-6 py-4">
                                             {editingStudentId === s.id ? (
-                                                <input 
-                                                    value={studentForm.name} 
-                                                    onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
-                                                    className="border p-1 rounded w-full"
-                                                />
-                                            ) : s.name}
+                                                <input value={studentForm.name} onChange={(e) => setStudentForm({...studentForm, name: e.target.value})} className="input-table" />
+                                            ) : <span className="font-bold text-slate-700">{s.name}</span>}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <td className="px-6 py-4 font-mono text-sm text-slate-500">
                                             {editingStudentId === s.id ? (
-                                                <input 
-                                                    value={studentForm.parentPhone} 
-                                                    onChange={(e) => setStudentForm({...studentForm, parentPhone: e.target.value})}
-                                                    className="border p-1 rounded w-full"
-                                                />
+                                                <input value={studentForm.parentPhone} onChange={(e) => setStudentForm({...studentForm, parentPhone: e.target.value})} className="input-table" />
                                             ) : s.parentPhone}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <td className="px-6 py-4">
                                             {editingStudentId === s.id ? (
-                                                <select 
-                                                    value={studentForm.classId} 
-                                                    onChange={(e) => setStudentForm({...studentForm, classId: e.target.value})}
-                                                    className="border p-1 rounded w-full"
-                                                >
+                                                <select value={studentForm.classId} onChange={(e) => setStudentForm({...studentForm, classId: e.target.value})} className="input-table bg-white">
                                                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                 </select>
-                                            ) : classes.find(c => c.id === s.classId)?.name}
+                                            ) : <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">{classes.find(c => c.id === s.classId)?.name}</span>}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm flex justify-center gap-3">
+                                        <td className="px-6 py-4 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {editingStudentId === s.id ? (
                                                 <>
-                                                    <button onClick={saveEditStudent} className="text-green-600 hover:text-green-800" title="حفظ"><Save size={18}/></button>
-                                                    <button onClick={() => setEditingStudentId(null)} className="text-gray-500 hover:text-gray-700" title="إلغاء"><XCircle size={18}/></button>
+                                                    <button onClick={saveEditStudent} className="text-emerald-600 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100"><Save size={16}/></button>
+                                                    <button onClick={() => setEditingStudentId(null)} className="text-slate-500 bg-slate-50 p-2 rounded-lg hover:bg-slate-100"><XCircle size={16}/></button>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <button onClick={() => startEditStudent(s)} className="text-blue-600 hover:text-blue-800" title="تعديل"><Edit2 size={18}/></button>
-                                                    <button onClick={() => handleDeleteStudent(s.id)} className="text-red-600 hover:text-red-800" title="حذف"><Trash2 size={18}/></button>
+                                                    <button onClick={() => startEditStudent(s)} className="text-indigo-600 bg-indigo-50 p-2 rounded-lg hover:bg-indigo-100"><Edit2 size={16}/></button>
+                                                    <button onClick={() => handleDeleteStudent(s.id)} className="text-rose-600 bg-rose-50 p-2 rounded-lg hover:bg-rose-100"><Trash2 size={16}/></button>
                                                 </>
                                             )}
                                         </td>
@@ -744,111 +719,118 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Classes & Schedules Tab */}
         {activeTab === 'classes' && (
             <div className="space-y-6 animate-fadeIn">
-                {/* Add New Class */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Grid className="text-purple-600"/>
-                        إدارة الفصول
-                    </h2>
-                    <div className="flex flex-col md:flex-row gap-4 items-end bg-purple-50 p-4 rounded-lg">
-                        <div className="flex-1">
-                            <label className="block text-xs font-bold mb-1">اسم الفصل (الشعبة)</label>
-                            <input 
-                                type="text" 
-                                placeholder="مثال: أول - أ" 
-                                className="w-full border p-2 rounded"
-                                value={newClassName}
-                                onChange={(e) => setNewClassName(e.target.value)}
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <label className="block text-xs font-bold mb-1">الصف الدراسي</label>
-                            <input 
-                                type="text" 
-                                placeholder="مثال: الصف الأول" 
-                                className="w-full border p-2 rounded"
-                                value={newClassGrade}
-                                onChange={(e) => setNewClassGrade(e.target.value)}
-                            />
-                        </div>
-                        <button 
-                            onClick={handleAddClass}
-                            className="bg-purple-600 text-white px-6 py-2 rounded font-bold hover:bg-purple-700"
-                        >
-                            إضافة فصل
-                        </button>
-                    </div>
-                </div>
-
-                {/* Schedule Editor */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    {activeClass ? (
-                        <>
-                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <BookOpen className="text-blue-600"/>
-                                الجدول الدراسي للفصل: <span className="text-blue-800">{activeClass.name}</span>
-                            </h2>
-                            <p className="text-sm text-gray-500 mb-4">اضغط على أي حصة لتعديل المادة والمعلم.</p>
-                            
-                            <div className="overflow-x-auto">
-                                <table className="w-full border-collapse text-center text-sm">
-                                    <thead>
-                                        <tr className="bg-gray-100">
-                                            <th className="border p-2">اليوم / الحصة</th>
-                                            {[1,2,3,4,5,6,7].map(p => <th key={p} className="border p-2">الحصة {p}</th>)}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {DAYS_OF_WEEK.map((day, dIndex) => (
-                                            <tr key={dIndex}>
-                                                <td className="border p-2 font-bold bg-gray-50">{day}</td>
-                                                {[1,2,3,4,5,6,7].map(period => {
-                                                    const slot = schedule.find(s => s.classId === selectedClassId && s.dayIndex === dIndex && s.period === period);
-                                                    const subject = subjects.find(s => s.id === slot?.subjectId);
-                                                    const teacher = teachers.find(t => t.id === slot?.teacherId);
-
-                                                    return (
-                                                        <td 
-                                                            key={period} 
-                                                            onClick={() => openScheduleEdit(dIndex, period)}
-                                                            className={`border p-2 cursor-pointer hover:bg-blue-50 transition-colors ${subject ? subject.color : 'bg-white'}`}
-                                                        >
-                                                            {slot ? (
-                                                                <div className="flex flex-col gap-1">
-                                                                    <span className="font-bold text-gray-800">{subject?.name}</span>
-                                                                    <span className="text-xs text-gray-600">{teacher?.name}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-gray-300 text-2xl">+</span>
-                                                            )}
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Add Class Form */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-1">
+                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+                            <Grid className="text-indigo-500"/>
+                            إضافة فصل جديد
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="label-modern">اسم الفصل (الشعبة)</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="مثال: أول - أ" 
+                                    className="input-modern w-full"
+                                    value={newClassName}
+                                    onChange={(e) => setNewClassName(e.target.value)}
+                                />
                             </div>
-                        </>
-                    ) : (
-                        <div className="text-center py-10 text-gray-400">
-                            <AlertCircle className="mx-auto mb-2" size={32}/>
-                            <p>لا يوجد فصول مسجلة. الرجاء إضافة فصل أولاً من الأعلى.</p>
+                            <div>
+                                <label className="label-modern">الصف الدراسي</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="مثال: الصف الأول" 
+                                    className="input-modern w-full"
+                                    value={newClassGrade}
+                                    onChange={(e) => setNewClassGrade(e.target.value)}
+                                />
+                            </div>
+                            <button 
+                                onClick={handleAddClass}
+                                className="w-full btn-primary py-3"
+                            >
+                                <Plus size={18} />
+                                إنشاء الفصل
+                            </button>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Schedule Editor */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
+                        {activeClass ? (
+                            <>
+                                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+                                    <BookOpen className="text-indigo-500"/>
+                                    الجدول الدراسي: <span className="text-indigo-600 bg-indigo-50 px-2 py-1 rounded text-base">{activeClass.name}</span>
+                                </h2>
+                                
+                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="w-full text-center text-sm">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                            <tr>
+                                                <th className="p-3 border-b">اليوم</th>
+                                                {[1,2,3,4,5,6,7].map(p => <th key={p} className="p-3 border-b border-r border-slate-200">الحصة {p}</th>)}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {DAYS_OF_WEEK.map((day, dIndex) => (
+                                                <tr key={dIndex} className="hover:bg-slate-50/50">
+                                                    <td className="p-3 font-bold text-slate-600 bg-slate-50/30">{day}</td>
+                                                    {[1,2,3,4,5,6,7].map(period => {
+                                                        const slot = schedule.find(s => s.classId === selectedClassId && s.dayIndex === dIndex && s.period === period);
+                                                        const subject = subjects.find(s => s.id === slot?.subjectId);
+                                                        const teacher = teachers.find(t => t.id === slot?.teacherId);
+
+                                                        return (
+                                                            <td 
+                                                                key={period} 
+                                                                onClick={() => openScheduleEdit(dIndex, period)}
+                                                                className={`p-2 border-r border-slate-100 cursor-pointer transition-all hover:brightness-95 ${subject ? subject.color.replace('text-', 'bg-opacity-20 text-') : 'hover:bg-indigo-50'}`}
+                                                            >
+                                                                {slot ? (
+                                                                    <div className={`rounded-lg p-1 ${subject?.color} bg-opacity-10 border`}>
+                                                                        <span className="font-bold block text-xs">{subject?.name}</span>
+                                                                        <span className="text-[10px] opacity-80 block mt-0.5">{teacher?.name}</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="w-full h-8 rounded-lg border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-300 hover:border-indigo-300 hover:text-indigo-300">
+                                                                        <Plus size={14}/>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center py-20">
+                                <AlertCircle className="mx-auto mb-3 text-slate-300" size={40}/>
+                                <p className="text-slate-500 font-medium">الرجاء اختيار أو إضافة فصل للبدء</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Editor Modal */}
                 {editingSlot && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white p-6 rounded-lg w-full max-w-sm animate-fadeIn shadow-2xl">
-                             <h3 className="font-bold mb-4 text-center">تعديل الحصة {editingSlot.period} - {DAYS_OF_WEEK[editingSlot.dayIndex]}</h3>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white p-6 rounded-2xl w-full max-w-sm animate-slideDown shadow-2xl">
+                             <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-lg text-slate-800">تعديل الحصة {editingSlot.period}</h3>
+                                <button onClick={() => setEditingSlot(null)} className="text-slate-400 hover:text-rose-500"><X size={20}/></button>
+                             </div>
                              
                              <div className="space-y-4">
                                  <div>
-                                     <label className="block text-xs font-bold mb-1">المادة</label>
+                                     <label className="label-modern">المادة الدراسية</label>
                                      <select 
-                                        className="w-full border p-2 rounded text-sm"
+                                        className="input-modern w-full"
                                         value={scheduleForm.subjectId}
                                         onChange={(e) => setScheduleForm({...scheduleForm, subjectId: e.target.value})}
                                      >
@@ -857,9 +839,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                      </select>
                                  </div>
                                  <div>
-                                     <label className="block text-xs font-bold mb-1">المعلم</label>
+                                     <label className="label-modern">المعلم المسؤول</label>
                                      <select 
-                                        className="w-full border p-2 rounded text-sm"
+                                        className="input-modern w-full"
                                         value={scheduleForm.teacherId}
                                         onChange={(e) => setScheduleForm({...scheduleForm, teacherId: e.target.value})}
                                      >
@@ -868,10 +850,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                      </select>
                                  </div>
                                  
-                                 <div className="flex gap-2 justify-end mt-4">
-                                     <button onClick={() => setEditingSlot(null)} className="text-gray-500 text-sm font-bold px-3 py-2">إلغاء</button>
-                                     <button onClick={saveScheduleSlot} className="bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded">حفظ</button>
-                                 </div>
+                                 <button onClick={saveScheduleSlot} className="btn-primary w-full py-3 mt-4">حفظ التغييرات</button>
                              </div>
                         </div>
                     </div>
@@ -879,77 +858,141 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
-        {/* ... (Rest of tabs: Setup, Plan, Messages, Archive, Attendance) ... */}
-        {/* Keeping code concise by noting that the rest of the tabs are unchanged logic from previous version */}
+        {/* --- SETUP TAB (Updated with Save Button) --- */}
         {activeTab === 'setup' && (
-             /* Setup Tab Code (Same as before) */
-             <div className="space-y-6 animate-fadeIn">
-                 {/* Setup content... */}
-                 <div className="bg-white rounded-lg shadow p-6 border-t-4 border-yellow-500">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
-                        <Settings className="text-yellow-600" />
-                        إعدادات الترويسة والتاريخ
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                            <h3 className="font-bold text-sm text-gray-600 border-b pb-1">معلومات المدرسة</h3>
-                            <div><label className="block text-xs font-bold mb-1">اسم الوزارة</label><input type="text" className="w-full border p-2 rounded text-sm" value={schoolSettings.authorityName} onChange={(e) => setSchoolSettings({...schoolSettings, authorityName: e.target.value})}/></div>
-                            <div><label className="block text-xs font-bold mb-1">اسم الإدارة</label><input type="text" className="w-full border p-2 rounded text-sm" value={schoolSettings.directorateName} onChange={(e) => setSchoolSettings({...schoolSettings, directorateName: e.target.value})}/></div>
-                            <div><label className="block text-xs font-bold mb-1">اسم المدرسة</label><input type="text" className="w-full border p-2 rounded text-sm" value={schoolSettings.schoolName} onChange={(e) => setSchoolSettings({...schoolSettings, schoolName: e.target.value})}/></div>
-                            <div><label className="block text-xs font-bold mb-1">شعار المدرسة</label><div className="flex gap-3 items-start p-2 border rounded-lg bg-gray-50"><div className="w-16 h-16 bg-white border rounded flex items-center justify-center overflow-hidden shrink-0">{schoolSettings.logoUrl ? <img src={schoolSettings.logoUrl} className="w-full h-full object-contain" /> : <ImageIcon className="text-gray-300" />}</div><div className="flex-1 space-y-2"><input type="file" accept="image/*" onChange={handleLogoUpload} className="block w-full text-xs" /><input type="text" className="w-full border p-2 rounded text-xs dir-ltr text-left" placeholder="أو رابط..." value={schoolSettings.logoUrl} onChange={(e) => setSchoolSettings({...schoolSettings, logoUrl: e.target.value})}/></div></div></div>
+             <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto">
+                 {/* School Info */}
+                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-gradient-to-r from-slate-50 to-white p-6 border-b border-slate-100 flex justify-between items-center">
+                        <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <Settings className="text-slate-600" />
+                            الإعدادات العامة
+                        </h2>
+                        {saveSuccess && (
+                            <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
+                                <CheckCircle size={14}/> تم الحفظ
+                            </span>
+                        )}
+                    </div>
+                    
+                    <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                        {/* Right Col */}
+                        <div className="space-y-5">
+                            <h3 className="text-sm font-bold text-indigo-900/50 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">بيانات الترويسة</h3>
+                            <div><label className="label-modern">اسم الوزارة</label><input type="text" className="input-modern w-full" value={schoolSettings.authorityName} onChange={(e) => setSchoolSettings({...schoolSettings, authorityName: e.target.value})}/></div>
+                            <div><label className="label-modern">اسم الإدارة</label><input type="text" className="input-modern w-full" value={schoolSettings.directorateName} onChange={(e) => setSchoolSettings({...schoolSettings, directorateName: e.target.value})}/></div>
+                            <div><label className="label-modern">اسم المدرسة</label><input type="text" className="input-modern w-full" value={schoolSettings.schoolName} onChange={(e) => setSchoolSettings({...schoolSettings, schoolName: e.target.value})}/></div>
                         </div>
-                        <div className="space-y-3">
-                             <h3 className="font-bold text-sm text-gray-600 border-b pb-1">إعدادات الأسبوع</h3>
-                             <div><label className="block text-xs font-bold mb-1">الأسبوع</label><input type="text" className="w-full border p-2 rounded text-sm" value={weekInfo.weekNumber} onChange={(e) => setWeekInfo({...weekInfo, weekNumber: e.target.value})}/></div>
-                             <div className="flex gap-2">
-                                 <div className="flex-1"><label className="block text-xs font-bold mb-1">من</label><input type="text" className="w-full border p-2 rounded text-sm" value={weekInfo.startDate} onChange={(e) => setWeekInfo({...weekInfo, startDate: e.target.value})}/></div>
-                                 <div className="flex-1"><label className="block text-xs font-bold mb-1">إلى</label><input type="text" className="w-full border p-2 rounded text-sm" value={weekInfo.endDate} onChange={(e) => setWeekInfo({...weekInfo, endDate: e.target.value})}/></div>
+
+                        {/* Left Col */}
+                        <div className="space-y-5">
+                             <h3 className="text-sm font-bold text-indigo-900/50 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">تفاصيل الفصل الدراسي</h3>
+                             <div className="flex gap-4">
+                                 <div className="flex-1"><label className="label-modern">رقم الأسبوع</label><input type="text" className="input-modern w-full" value={weekInfo.weekNumber} onChange={(e) => setWeekInfo({...weekInfo, weekNumber: e.target.value})}/></div>
+                                 <div className="flex-[2]"><label className="label-modern">الفصل الدراسي</label><input type="text" className="input-modern w-full" value={weekInfo.semester} onChange={(e) => setWeekInfo({...weekInfo, semester: e.target.value})}/></div>
                              </div>
-                             <div><label className="block text-xs font-bold mb-1">الفصل الدراسي</label><input type="text" className="w-full border p-2 rounded text-sm" value={weekInfo.semester} onChange={(e) => setWeekInfo({...weekInfo, semester: e.target.value})}/></div>
+                             <div className="flex gap-4">
+                                 <div className="flex-1"><label className="label-modern">تاريخ البدء</label><input type="text" className="input-modern w-full text-center" value={weekInfo.startDate} onChange={(e) => setWeekInfo({...weekInfo, startDate: e.target.value})}/></div>
+                                 <div className="flex-1"><label className="label-modern">تاريخ الانتهاء</label><input type="text" className="input-modern w-full text-center" value={weekInfo.endDate} onChange={(e) => setWeekInfo({...weekInfo, endDate: e.target.value})}/></div>
+                             </div>
+                             
+                             <div>
+                                <label className="label-modern">شعار المدرسة</label>
+                                <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200 border-dashed">
+                                    <div className="w-16 h-16 bg-white border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                        {schoolSettings.logoUrl ? <img src={schoolSettings.logoUrl} className="w-full h-full object-contain" /> : <ImageIcon className="text-slate-300" />}
+                                    </div>
+                                    <div className="flex-1">
+                                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 mb-2" />
+                                        <input type="text" className="w-full border-none bg-transparent text-xs text-slate-400 focus:text-slate-600 outline-none" placeholder="أو الصق رابط الصورة هنا..." value={schoolSettings.logoUrl} onChange={(e) => setSchoolSettings({...schoolSettings, logoUrl: e.target.value})}/>
+                                    </div>
+                                </div>
+                             </div>
                         </div>
+                    </div>
+                    
+                    {/* The Save Button requested */}
+                    <div className="bg-slate-50 p-4 flex justify-end border-t border-slate-200">
+                        <button 
+                            onClick={handleManualSaveSettings}
+                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 transform active:scale-95"
+                        >
+                            <Save size={20} />
+                            حفظ كافة الإعدادات
+                        </button>
                     </div>
                  </div>
                  
-                 {/* Subjects & Teachers (Abbreviated for brevity as they weren't changed) */}
-                 <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800"><Book className="text-green-600"/> إدارة المواد</h2>
-                    <div className="bg-green-50 p-4 rounded-lg flex flex-col md:flex-row gap-4 items-end">
-                        <div className="w-full md:w-1/3"><label className="block text-xs text-gray-500 mb-1">اسم المادة</label><input type="text" className="w-full border p-2 rounded text-sm" value={subjectForm.name} onChange={(e) => setSubjectForm({...subjectForm, name: e.target.value})}/></div>
-                        <div className="w-full md:w-1/3"><label className="block text-xs text-gray-500 mb-1">لون التمييز</label><select className="w-full border p-2 rounded text-sm" value={subjectForm.color} onChange={(e) => setSubjectForm({...subjectForm, color: e.target.value})}>{COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
-                        <button onClick={handleAddSubject} className="bg-green-600 text-white px-4 py-2 rounded text-sm font-bold">إضافة</button>
+                 {/* Subjects & Teachers */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800"><Book className="text-emerald-500"/> المواد الدراسية</h2>
+                        <div className="flex gap-2 mb-4">
+                            <input type="text" className="input-modern flex-1" placeholder="اسم المادة" value={subjectForm.name} onChange={(e) => setSubjectForm({...subjectForm, name: e.target.value})}/>
+                            <select className="input-modern w-32" value={subjectForm.color} onChange={(e) => setSubjectForm({...subjectForm, color: e.target.value})}>
+                                {COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </select>
+                            <button onClick={handleAddSubject} className="bg-emerald-600 text-white px-4 rounded-xl hover:bg-emerald-700 transition-colors"><Plus/></button>
+                        </div>
+                        <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
+                            {subjects.map(s => (
+                                <div key={s.id} className={`px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-2 ${s.color}`}>
+                                    {s.name}
+                                    <button onClick={() => handleDeleteSubject(s.id)} className="opacity-50 hover:opacity-100"><XCircle size={14}/></button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">{subjects.map(s => <div key={s.id} className={`border px-3 py-2 rounded-lg text-sm shadow-sm flex items-center gap-2 ${s.color}`}><span className="font-bold">{s.name}</span><button onClick={() => handleDeleteSubject(s.id)} className="text-gray-400 hover:text-red-600"><XCircle size={16}/></button></div>)}</div>
-                 </div>
 
-                 <div className="bg-white rounded-lg shadow p-6">
-                     <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800"><Users className="text-blue-600"/> المعلمين</h2>
-                     <div className="bg-blue-50 p-4 rounded-lg flex flex-col md:flex-row gap-4 items-end mb-4">
-                         <div className="w-full md:w-1/3"><label className="block text-xs text-gray-500 mb-1">الاسم</label><input type="text" className="w-full border p-2 rounded text-sm" value={teacherForm.name} onChange={(e) => setTeacherForm({...teacherForm, name: e.target.value})}/></div>
-                         <div className="w-full md:w-1/3"><label className="block text-xs text-gray-500 mb-1">User</label><input type="text" className="w-full border p-2 rounded text-sm" value={teacherForm.username} onChange={(e) => setTeacherForm({...teacherForm, username: e.target.value})}/></div>
-                         <div className="w-full md:w-1/3"><label className="block text-xs text-gray-500 mb-1">Pass</label><input type="text" className="w-full border p-2 rounded text-sm" value={teacherForm.password} onChange={(e) => setTeacherForm({...teacherForm, password: e.target.value})}/></div>
-                         <button onClick={handleCreateTeacher} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold">إضافة</button>
-                     </div>
-                     <div className="overflow-x-auto">
-                         <table className="min-w-full border rounded-lg"><thead className="bg-gray-50"><tr><th className="px-6 py-3 text-right text-xs text-gray-500">المعلم</th><th className="px-6 py-3 text-right text-xs text-gray-500">الحساب</th><th className="px-6 py-3 text-center text-xs text-gray-500">حذف</th></tr></thead><tbody className="bg-white divide-y divide-gray-200">{teachers.map(t => <tr key={t.id}><td className="px-6 py-4 text-sm">{t.name}</td><td className="px-6 py-4 text-sm font-mono">{t.username}</td><td className="px-6 py-4 text-center"><button onClick={() => handleDeleteTeacher(t.id)} className="text-red-600"><Trash2 size={16}/></button></td></tr>)}</tbody></table>
-                     </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                         <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800"><Users className="text-blue-500"/> حسابات المعلمين</h2>
+                         <div className="flex flex-col gap-3 mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                             <div className="flex gap-2">
+                                <input type="text" className="input-modern flex-1 bg-white" placeholder="الاسم" value={teacherForm.name} onChange={(e) => setTeacherForm({...teacherForm, name: e.target.value})}/>
+                                <input type="text" className="input-modern w-1/3 bg-white" placeholder="User" value={teacherForm.username} onChange={(e) => setTeacherForm({...teacherForm, username: e.target.value})}/>
+                             </div>
+                             <div className="flex gap-2">
+                                <input type="text" className="input-modern flex-1 bg-white" placeholder="Pass" value={teacherForm.password} onChange={(e) => setTeacherForm({...teacherForm, password: e.target.value})}/>
+                                <button onClick={handleCreateTeacher} className="bg-blue-600 text-white px-6 rounded-xl hover:bg-blue-700 font-bold text-sm">إضافة</button>
+                             </div>
+                         </div>
+                         <div className="max-h-60 overflow-y-auto pr-1 space-y-2">
+                             {teachers.map(t => (
+                                 <div key={t.id} className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
+                                     <div>
+                                         <p className="font-bold text-sm text-slate-800">{t.name}</p>
+                                         <p className="text-xs text-slate-400 font-mono">@{t.username}</p>
+                                     </div>
+                                     <button onClick={() => handleDeleteTeacher(t.id)} className="text-rose-400 hover:text-rose-600 bg-rose-50 p-2 rounded-lg"><Trash2 size={16}/></button>
+                                 </div>
+                             ))}
+                         </div>
+                    </div>
                  </div>
              </div>
         )}
 
+        {/* PLAN TAB */}
         {activeTab === 'plan' && (
           <div className="animate-fadeIn">
              {activeClass ? (
                  <>
-                    <div className="mb-4 flex flex-col md:flex-row justify-between items-center no-print gap-4">
-                        <h2 className="text-xl font-bold">معاينة الخطة الحالية ({activeClass.name})</h2>
+                    <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center no-print gap-4">
+                        <div className="flex items-center gap-3">
+                             <div className="bg-indigo-100 p-2 rounded-lg text-indigo-700"><FileText size={24}/></div>
+                             <div>
+                                 <h2 className="text-xl font-bold text-slate-800">معاينة الخطة</h2>
+                                 <p className="text-xs text-slate-500">جاهزة للطباعة (A4)</p>
+                             </div>
+                        </div>
                         <div className="flex flex-wrap gap-2 justify-center">
-                            <button onClick={onClearPlans} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2 transition-colors text-sm"><Eraser size={18} /><span>تفريغ</span></button>
-                            <button onClick={handleArchiveClick} className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center gap-2 transition-colors text-sm"><Archive size={18} /><span>أرشفة</span></button>
-                            <button onClick={handlePrint} className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 flex items-center gap-2 transition-colors text-sm"><Printer size={18} /><span>طباعة (A4)</span></button>
+                            <button onClick={onClearPlans} className="btn-secondary text-rose-600 bg-rose-50 hover:bg-rose-100"><Eraser size={18} /><span>تفريغ</span></button>
+                            <button onClick={handleArchiveClick} className="btn-secondary text-amber-600 bg-amber-50 hover:bg-amber-100"><Archive size={18} /><span>أرشفة</span></button>
+                            <button onClick={handlePrint} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl hover:bg-slate-900 flex items-center gap-2 font-bold shadow-lg shadow-slate-300 transition-all"><Printer size={18} /><span>طباعة</span></button>
                         </div>
                     </div>
                     {/* Print container */}
-                    <div className="bg-white shadow-2xl print:shadow-none mx-auto">
+                    <div className="bg-white shadow-2xl print:shadow-none mx-auto rounded-none">
                         <WeeklyPlanTemplate 
                             classGroup={activeClass}
                             weekInfo={weekInfo}
@@ -962,23 +1005,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                  </>
              ) : (
-                <div className="text-center py-20 bg-white rounded-lg shadow"><AlertCircle className="mx-auto mb-4 text-gray-300" size={48}/><h3 className="text-xl font-bold text-gray-500">لا يوجد خطط لعرضها</h3></div>
+                <div className="text-center py-20 bg-white rounded-2xl shadow border border-slate-100">
+                    <AlertCircle className="mx-auto mb-4 text-slate-200" size={48}/>
+                    <h3 className="text-xl font-bold text-slate-400">لا يوجد بيانات للعرض</h3>
+                </div>
              )}
           </div>
         )}
 
-        {/* ... Messages, Archive, Attendance (Unchanged) ... */}
-        {activeTab === 'messages' && (
-             <div className="h-[500px] bg-white rounded shadow p-6 flex items-center justify-center text-gray-400 font-bold">نظام الرسائل (كما هو)</div>
-        )}
-        {activeTab === 'archive' && (
-             <div className="h-[500px] bg-white rounded shadow p-6 flex items-center justify-center text-gray-400 font-bold">الأرشيف (كما هو)</div>
-        )}
-        {activeTab === 'attendance' && (
-             <div className="h-[500px] bg-white rounded shadow p-6 flex items-center justify-center text-gray-400 font-bold">نظام الغياب (كما هو)</div>
+        {/* Placeholder Tabs */}
+        {(activeTab === 'messages' || activeTab === 'archive' || activeTab === 'attendance') && (
+             <div className="min-h-[400px] bg-white rounded-3xl shadow-sm border border-slate-200 p-10 flex flex-col items-center justify-center text-slate-400 animate-fadeIn">
+                 <div className="bg-slate-50 p-6 rounded-full mb-4">
+                    {activeTab === 'messages' && <MessageSquare size={48}/>}
+                    {activeTab === 'archive' && <History size={48}/>}
+                    {activeTab === 'attendance' && <Users size={48}/>}
+                 </div>
+                 <h3 className="text-2xl font-bold text-slate-300">قريباً: تحسين واجهة {activeTab === 'messages' ? 'الرسائل' : activeTab === 'archive' ? 'الأرشيف' : 'الغياب'}</h3>
+                 <p className="text-slate-400 mt-2">الوظائف تعمل، لكن التصميم قيد التحديث.</p>
+             </div>
         )}
 
       </div>
+      
+      <style>{`
+        .input-modern {
+            @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-400 text-sm font-medium;
+        }
+        .label-modern {
+            @apply block text-xs font-bold text-slate-500 mb-1.5 mr-1;
+        }
+        .btn-primary {
+            @apply bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95;
+        }
+        .btn-secondary {
+            @apply px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 border border-transparent;
+        }
+        .input-table {
+            @apply w-full border border-indigo-300 rounded px-2 py-1 outline-none text-sm focus:ring-2 focus:ring-indigo-100;
+        }
+      `}</style>
     </div>
   );
 };

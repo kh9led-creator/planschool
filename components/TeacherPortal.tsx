@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGroup, AttendanceRecord, Message } from '../types';
 import { DAYS_OF_WEEK } from '../services/data';
-import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell } from 'lucide-react';
+import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool } from 'lucide-react';
 
 interface TeacherPortalProps {
   teacher: Teacher;
@@ -45,7 +45,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
   // Messaging Logic
   const myMessages = messages.filter(m => m.receiverId === teacher.id || m.receiverId === 'all' || m.senderId === teacher.id);
-  const unreadCount = messages.filter(m => (m.receiverId === teacher.id || m.receiverId === 'all') && !m.isRead).length; // Simplified read logic
+  const unreadCount = messages.filter(m => (m.receiverId === teacher.id || m.receiverId === 'all') && !m.isRead).length; 
 
   const handleSendToAdmin = () => {
     if (!newMessageText.trim()) return;
@@ -113,27 +113,32 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto pb-20">
-      {/* Header Card with Messaging Icon */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6 flex justify-between items-start">
-        <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">بوابة المعلم</h2>
-            <p className="text-gray-600">مرحباً, {teacher.name}</p>
-            <p className="text-sm text-green-600 font-semibold mt-1">
-            {weekInfo.weekNumber} | {weekInfo.startDate} - {weekInfo.endDate}
-            </p>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto pb-20 font-sans">
+      {/* Header Card */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl shadow-xl p-8 mb-8 text-white relative overflow-hidden">
+        <div className="relative z-10 flex justify-between items-start">
+            <div>
+                <h2 className="text-3xl font-extrabold mb-1">بوابة المعلم</h2>
+                <p className="text-emerald-100 font-medium text-lg">أهلاً بك، أستاذ {teacher.name}</p>
+                <div className="mt-4 flex gap-3 text-sm font-bold bg-white/10 p-2 rounded-xl inline-flex backdrop-blur-sm border border-white/20">
+                    <span className="flex items-center gap-2"><Calendar size={16}/> {weekInfo.weekNumber}</span>
+                    <span className="w-px bg-white/30"></span>
+                    <span>{weekInfo.startDate} - {weekInfo.endDate}</span>
+                </div>
+            </div>
+            <button 
+                onClick={() => setShowMessagesModal(true)}
+                className="relative p-3 bg-white/20 hover:bg-white/30 rounded-2xl transition-all border border-white/20"
+            >
+                <MessageCircle size={28} className="text-white" />
+                {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full border-2 border-emerald-600 font-bold shadow-sm">
+                        {unreadCount}
+                    </span>
+                )}
+            </button>
         </div>
-        <button 
-            onClick={() => setShowMessagesModal(true)}
-            className="relative p-3 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
-        >
-            <MessageCircle size={24} />
-            {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                    {unreadCount}
-                </span>
-            )}
-        </button>
+        <BookOpen className="absolute -bottom-6 -left-6 text-white/10 w-48 h-48 rotate-12 pointer-events-none" />
       </div>
 
       <div className="space-y-4">
@@ -144,86 +149,103 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
           const isOpen = activeDay === dIndex;
 
           return (
-            <div key={dIndex} className="bg-white border rounded-lg overflow-hidden shadow-sm">
+            <div key={dIndex} className={`bg-white border transition-all duration-300 overflow-hidden ${isOpen ? 'rounded-2xl shadow-lg border-emerald-100 ring-2 ring-emerald-50' : 'rounded-xl shadow-sm border-gray-100 hover:border-emerald-200'}`}>
               <button 
                 onClick={() => setActiveDay(isOpen ? null : dIndex)}
-                className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                className={`w-full flex justify-between items-center p-5 transition-colors ${isOpen ? 'bg-emerald-50/50' : 'bg-white hover:bg-gray-50'}`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-lg text-gray-700">{day}</span>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    {daySlots.length} حصص
-                  </span>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${isOpen ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      {dIndex + 1}
+                  </div>
+                  <div className="text-right">
+                      <span className={`font-bold text-lg block ${isOpen ? 'text-emerald-900' : 'text-gray-700'}`}>{day}</span>
+                      <span className="text-xs text-gray-500 font-medium">
+                        {daySlots.length} حصص دراسية
+                      </span>
+                  </div>
                 </div>
-                {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                {isOpen ? <ChevronUp size={24} className="text-emerald-600" /> : <ChevronDown size={24} className="text-gray-400" />}
               </button>
 
               {isOpen && (
-                <div className="p-4 space-y-4 animate-fadeIn">
+                <div className="p-5 space-y-6 animate-slideDown">
                   {daySlots.map((slot) => {
                      const subject = subjects.find(s => s.id === slot.subjectId);
                      const classObj = classes.find(c => c.id === slot.classId);
+                     const bgColor = subject?.color.replace('text-', 'bg-opacity-20 bg-') || 'bg-gray-50';
+                     const borderColor = subject?.color.replace('text-', 'border-') || 'border-gray-200';
                      
                      return (
-                      <div key={slot.period} className="border rounded-md p-4 bg-white relative">
-                         <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-center gap-2 mt-2">
-                                <div className={`w-3 h-3 rounded-full ${subject?.color.replace('bg-', 'bg-')}-400`}></div>
-                                <div>
-                                    <span className="font-bold block text-lg">{subject?.name}</span>
-                                    <span className="text-sm text-gray-500">{classObj?.name}</span>
+                      <div key={slot.period} className="relative group">
+                         {/* Card Content */}
+                         <div className={`border rounded-2xl p-6 bg-white shadow-sm hover:shadow-md transition-all relative z-10`}>
+                             <div className="flex justify-between items-start mb-6 border-b border-gray-100 pb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-12 rounded-full ${subject?.color.replace('text-', 'bg-')}`}></div>
+                                    <div>
+                                        <h3 className="font-bold text-xl text-gray-800">{subject?.name}</h3>
+                                        <p className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                                            <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600">{classObj?.name}</span>
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="bg-gray-200 px-2 py-1 rounded text-xs font-bold">
-                                الحصة {slot.period}
-                            </div>
-                         </div>
-                         
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">عنوان الدرس</label>
+                                <div className="bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold shadow-inner">
+                                    الحصة {slot.period}
+                                </div>
+                             </div>
+                             
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        <PenTool size={12}/> عنوان الدرس
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      className="teacher-input"
+                                      placeholder="ما هو موضوع الدرس اليوم؟"
+                                      value={getEntryValue(slot, 'lessonTopic')}
+                                      onChange={(e) => handleInputChange(slot, 'lessonTopic', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        <BookOpen size={12}/> الواجب المنزلي
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      className="teacher-input"
+                                      placeholder="تفاصيل الواجب..."
+                                      value={getEntryValue(slot, 'homework')}
+                                      onChange={(e) => handleInputChange(slot, 'homework', e.target.value)}
+                                    />
+                                </div>
+                             </div>
+                             <div className="mt-4 space-y-2">
+                                <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                    ملاحظات إضافية
+                                </label>
                                 <input 
                                   type="text" 
-                                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 border p-2 text-sm"
-                                  placeholder="أدخل عنوان الدرس..."
-                                  value={getEntryValue(slot, 'lessonTopic')}
-                                  onChange={(e) => handleInputChange(slot, 'lessonTopic', e.target.value)}
+                                  className="teacher-input"
+                                  placeholder="أي ملاحظات للطالب أو ولي الأمر..."
+                                  value={getEntryValue(slot, 'notes')}
+                                  onChange={(e) => handleInputChange(slot, 'notes', e.target.value)}
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">الواجب المنزلي</label>
-                                <input 
-                                  type="text" 
-                                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 border p-2 text-sm"
-                                  placeholder="أدخل الواجب..."
-                                  value={getEntryValue(slot, 'homework')}
-                                  onChange={(e) => handleInputChange(slot, 'homework', e.target.value)}
-                                />
-                            </div>
-                         </div>
-                         <div className="mt-3">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">ملاحظات (اختياري)</label>
-                            <input 
-                              type="text" 
-                              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 border p-2 text-sm"
-                              placeholder="ملاحظات..."
-                              value={getEntryValue(slot, 'notes')}
-                              onChange={(e) => handleInputChange(slot, 'notes', e.target.value)}
-                            />
-                         </div>
-                         
-                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <button 
-                                onClick={() => openAttendance(slot.classId)}
-                                className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-md hover:bg-indigo-100 text-sm transition-colors"
-                            >
-                                <UserCheck size={16} />
-                                <span>رصد الغياب</span>
-                            </button>
-                            <button className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
-                                <Save size={16} />
-                                <span>حفظ التغييرات</span>
-                            </button>
+                             </div>
+                             
+                             <div className="flex justify-between items-center pt-6 mt-2">
+                                <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
+                                    <CheckCircle size={12}/> يتم الحفظ تلقائياً
+                                </span>
+                                <button 
+                                    onClick={() => openAttendance(slot.classId)}
+                                    className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl hover:bg-emerald-100 text-sm font-bold transition-all active:scale-95"
+                                >
+                                    <UserCheck size={18} />
+                                    <span>رصد الغياب</span>
+                                </button>
+                             </div>
                          </div>
                       </div>
                      );
@@ -237,24 +259,28 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
       {/* Attendance Modal */}
       {showAttendanceModal && selectedClassForAttendance && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="bg-indigo-600 text-white p-4 flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2">
-                        <UserCheck size={20}/>
-                        رصد الغياب: {selectedClassForAttendance.className}
-                    </h3>
-                    <button onClick={() => setShowAttendanceModal(false)} className="text-white hover:bg-indigo-700 p-1 rounded">
-                        <X size={24}/>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slideDown">
+                <div className="bg-slate-800 text-white p-5 flex justify-between items-center">
+                    <div>
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                            <UserCheck size={20} className="text-emerald-400"/>
+                            رصد الغياب
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">{selectedClassForAttendance.className} | {new Date().toLocaleDateString('ar-SA')}</p>
+                    </div>
+                    <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
+                        <X size={20}/>
                     </button>
                 </div>
                 
-                <div className="p-4 overflow-y-auto flex-1">
-                    <p className="text-sm text-gray-500 mb-4 text-center">اضغط على الطالب لتغيير الحالة (أخضر = حاضر، أحمر = غائب)</p>
-                    
-                    <div className="space-y-2">
+                <div className="p-4 overflow-y-auto flex-1 bg-slate-50">
+                    <div className="space-y-3">
                         {students.filter(s => s.classId === selectedClassForAttendance.classId).length === 0 ? (
-                            <div className="text-center py-8 text-gray-400">لا يوجد طلاب مسجلين في هذا الفصل</div>
+                            <div className="text-center py-12 flex flex-col items-center">
+                                <div className="bg-white p-4 rounded-full shadow-sm mb-3"><UserCheck size={32} className="text-slate-300"/></div>
+                                <p className="text-slate-500 font-bold">لا يوجد طلاب مسجلين في هذا الفصل</p>
+                            </div>
                         ) : (
                             students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
                                 const record = attendanceRecords.find(r => r.studentId === student.id && r.date === todayDate);
@@ -264,25 +290,25 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                     <div 
                                         key={student.id}
                                         onClick={() => toggleAttendance(student.id)}
-                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isAbsent ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}
+                                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all shadow-sm group ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200 hover:border-emerald-300'}`}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${isAbsent ? 'bg-red-500' : 'bg-green-500'}`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm transition-colors ${isAbsent ? 'bg-rose-500' : 'bg-slate-200 text-slate-500 group-hover:bg-emerald-500 group-hover:text-white'}`}>
                                                 {student.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-gray-800">{student.name}</p>
-                                                <p className="text-xs text-gray-500">{student.parentPhone}</p>
+                                                <p className={`font-bold transition-colors ${isAbsent ? 'text-rose-800' : 'text-slate-700'}`}>{student.name}</p>
+                                                <p className="text-xs text-slate-400">{student.parentPhone}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {isAbsent ? (
-                                                <span className="flex items-center gap-1 text-red-700 font-bold text-sm">
-                                                    <XCircle size={16}/> غائب
+                                                <span className="flex items-center gap-1 text-rose-600 bg-rose-100 px-3 py-1 rounded-lg font-bold text-xs">
+                                                    <XCircle size={14}/> غائب
                                                 </span>
                                             ) : (
-                                                <span className="flex items-center gap-1 text-green-700 font-bold text-sm">
-                                                    <CheckCircle size={16}/> حاضر
+                                                <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <CheckCircle size={14}/> حاضر
                                                 </span>
                                             )}
                                         </div>
@@ -293,12 +319,12 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                     </div>
                 </div>
 
-                <div className="p-4 border-t bg-gray-50 flex justify-end">
+                <div className="p-4 border-t bg-white flex justify-end">
                     <button 
                         onClick={() => setShowAttendanceModal(false)}
-                        className="bg-indigo-600 text-white px-6 py-2 rounded font-bold hover:bg-indigo-700"
+                        className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg"
                     >
-                        تم
+                        حفظ وإغلاق
                     </button>
                 </div>
             </div>
@@ -307,86 +333,88 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
       {/* Messaging Modal */}
       {showMessagesModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[500px]">
-                  <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
-                       <h3 className="font-bold flex items-center gap-2">
-                          <MessageCircle size={20}/>
-                          التواصل الداخلي
-                       </h3>
-                       <button onClick={() => setShowMessagesModal(false)} className="text-white hover:bg-blue-700 p-1 rounded">
-                           <X size={24}/>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[600px] animate-slideDown">
+                  <div className="bg-indigo-600 text-white p-5 flex justify-between items-center">
+                       <div>
+                           <h3 className="font-bold text-lg flex items-center gap-2">
+                              <MessageCircle size={20}/>
+                              التواصل الداخلي
+                           </h3>
+                           <p className="text-indigo-200 text-xs">مع إدارة المدرسة</p>
+                       </div>
+                       <button onClick={() => setShowMessagesModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
+                           <X size={20}/>
                        </button>
                   </div>
                   
-                  <div className="flex border-b">
+                  <div className="flex border-b bg-indigo-50/50 p-1 mx-4 mt-4 rounded-xl">
                       <button 
                         onClick={() => setMsgTab('inbox')}
-                        className={`flex-1 p-3 text-sm font-bold ${msgTab === 'inbox' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${msgTab === 'inbox' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}
                       >
                           الوارد
                       </button>
                       <button 
                         onClick={() => setMsgTab('compose')}
-                        className={`flex-1 p-3 text-sm font-bold ${msgTab === 'compose' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${msgTab === 'compose' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}
                       >
-                          مراسلة الإدارة
+                          رسالة جديدة
                       </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                  <div className="flex-1 overflow-y-auto p-4 bg-white">
                       {msgTab === 'inbox' ? (
                           <div className="space-y-3">
                               {myMessages.filter(m => m.senderId !== teacher.id).length === 0 ? (
-                                  <div className="text-center text-gray-400 mt-10">لا يوجد رسائل واردة</div>
+                                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                                      <div className="bg-gray-50 p-4 rounded-full mb-3"><Bell size={32} className="text-gray-300"/></div>
+                                      <p className="text-gray-400 font-bold">لا يوجد رسائل واردة</p>
+                                  </div>
                               ) : (
                                   myMessages.filter(m => m.senderId !== teacher.id).map(msg => (
-                                      <div key={msg.id} className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                                          <div className="flex justify-between items-start mb-1">
-                                              <span className="font-bold text-blue-800 text-sm flex items-center gap-1">
-                                                  {msg.type === 'announcement' && <Bell size={12} />}
+                                      <div key={msg.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 relative group hover:shadow-md transition-shadow">
+                                          <div className="flex justify-between items-start mb-2">
+                                              <span className="font-bold text-indigo-700 text-sm flex items-center gap-1.5">
+                                                  {msg.type === 'announcement' && <Bell size={14} className="text-amber-500" />}
                                                   {msg.senderName}
                                               </span>
-                                              <span className="text-xs text-gray-400">{msg.timestamp}</span>
+                                              <span className="text-[10px] text-gray-400 bg-white px-2 py-1 rounded-full border border-gray-100">{msg.timestamp}</span>
                                           </div>
-                                          <p className="text-gray-700 text-sm whitespace-pre-wrap">{msg.content}</p>
+                                          <p className="text-gray-700 text-sm leading-relaxed">{msg.content}</p>
                                       </div>
                                   ))
                               )}
                           </div>
                       ) : (
                           <div className="h-full flex flex-col">
-                              <label className="block text-sm font-bold text-gray-700 mb-2">نص الرسالة للمدير:</label>
-                              <textarea 
-                                className="flex-1 w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="اكتب رسالتك أو طلبك هنا..."
-                                value={newMessageText}
-                                onChange={(e) => setNewMessageText(e.target.value)}
-                              />
+                              <label className="block text-sm font-bold text-gray-700 mb-2">محتوى الرسالة:</label>
+                              <div className="relative flex-1 mb-4">
+                                  <textarea 
+                                    className="w-full h-full border-2 border-gray-100 rounded-xl p-4 text-sm resize-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all bg-gray-50 focus:bg-white"
+                                    placeholder="اكتب رسالتك للإدارة هنا..."
+                                    value={newMessageText}
+                                    onChange={(e) => setNewMessageText(e.target.value)}
+                                  />
+                              </div>
                               <button 
                                 onClick={handleSendToAdmin}
-                                className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
+                                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
                               >
-                                  <Send size={16}/> إرسال
+                                  <Send size={18}/> إرسال الرسالة
                               </button>
-                              
-                              <div className="mt-4 pt-4 border-t">
-                                  <h4 className="text-xs font-bold text-gray-500 mb-2">رسائلي المرسلة:</h4>
-                                  <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                                      {myMessages.filter(m => m.senderId === teacher.id).map(msg => (
-                                          <div key={msg.id} className="bg-blue-50 p-2 rounded border border-blue-100 text-xs">
-                                              <p className="text-gray-700">{msg.content}</p>
-                                              <span className="text-gray-400 block text-[10px] mt-1 text-left">{msg.timestamp}</span>
-                                          </div>
-                                      ))}
-                                  </div>
-                              </div>
                           </div>
                       )}
                   </div>
               </div>
           </div>
       )}
+      
+      <style>{`
+        .teacher-input {
+            @apply w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 text-sm font-medium text-gray-700 placeholder-gray-400 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none transition-all;
+        }
+      `}</style>
 
     </div>
   );
