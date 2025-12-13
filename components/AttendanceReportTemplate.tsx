@@ -6,7 +6,8 @@ interface AttendanceReportTemplateProps {
   classGroup: { name: string; id: string };
   teacherName: string;
   date: string;
-  absentStudents: Student[];
+  absentStudents: (Student | { id: string; name: string; parentPhone: string; className?: string })[];
+  showClassColumn?: boolean;
 }
 
 const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
@@ -14,7 +15,8 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
   classGroup,
   teacherName,
   date,
-  absentStudents
+  absentStudents,
+  showClassColumn = false
 }) => {
   const dateObj = new Date(date);
   const dayName = dateObj.toLocaleDateString('ar-SA', { weekday: 'long' });
@@ -47,7 +49,7 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
            <div className="text-right border border-black p-2 rounded-lg bg-gray-50 min-w-[150px]">
               <p>اليوم: <span className="font-normal">{dayName}</span></p>
               <p>التاريخ: <span className="font-normal font-mono">{date}</span></p>
-              <p>الفصل: <span className="font-normal">{classGroup.name}</span></p>
+              {!showClassColumn && <p>الفصل: <span className="font-normal">{classGroup.name}</span></p>}
            </div>
         </div>
       </div>
@@ -55,7 +57,7 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
       {/* 2. TITLE */}
       <div className="text-center mb-6">
           <h1 className="text-xl font-extrabold border-2 border-black inline-block px-8 py-2 rounded-full shadow-sm bg-gray-50">
-              كشف الطلاب الغائبين
+              {showClassColumn ? 'تقرير الغياب اليومي الشامل' : 'كشف الطلاب الغائبين'}
           </h1>
       </div>
 
@@ -70,8 +72,9 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
             <table className="w-full border-collapse text-center">
             <thead>
                 <tr className="bg-gray-100 text-xs border-y-2 border-black">
-                <th className="border-x border-black p-2 w-[10%] font-bold">م</th>
-                <th className="border-x border-black p-2 w-[40%] font-bold">اسم الطالب</th>
+                <th className="border-x border-black p-2 w-[5%] font-bold">م</th>
+                <th className={`border-x border-black p-2 font-bold ${showClassColumn ? 'w-[30%]' : 'w-[40%]'}`}>اسم الطالب</th>
+                {showClassColumn && <th className="border-x border-black p-2 w-[15%] font-bold">الفصل</th>}
                 <th className="border-x border-black p-2 w-[20%] font-bold">رقم ولي الأمر</th>
                 <th className="border-x border-black p-2 w-[30%] font-bold">ملاحظات / حالة العذر</th>
                 </tr>
@@ -81,6 +84,9 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
                     <tr key={student.id} className="text-sm border-b border-black">
                         <td className="border-x border-black p-3 font-bold bg-gray-50">{index + 1}</td>
                         <td className="border-x border-black p-3 text-right font-bold">{student.name}</td>
+                        {showClassColumn && (
+                             <td className="border-x border-black p-3 text-sm">{('className' in student) ? student.className : '-'}</td>
+                        )}
                         <td className="border-x border-black p-3 font-mono">{student.parentPhone}</td>
                         <td className="border-x border-black p-3"></td>
                     </tr>
@@ -93,11 +99,11 @@ const AttendanceReportTemplate: React.FC<AttendanceReportTemplateProps> = ({
       {/* 4. FOOTER SIGNATURES */}
       <div className="mt-auto pt-10 grid grid-cols-2 gap-10">
           <div className="text-center">
-              <p className="font-bold text-sm mb-10">معلم المادة / مربي الفصل</p>
+              <p className="font-bold text-sm mb-10">{showClassColumn ? 'وكيل شؤون الطلاب' : 'معلم المادة / مربي الفصل'}</p>
               <p className="font-bold text-lg border-b-2 border-dotted border-black inline-block min-w-[200px] pb-1">{teacherName}</p>
           </div>
           <div className="text-center">
-              <p className="font-bold text-sm mb-10">مدير المدرسة / الوكيل</p>
+              <p className="font-bold text-sm mb-10">مدير المدرسة</p>
               <div className="border-b-2 border-dotted border-black w-2/3 mx-auto"></div>
           </div>
       </div>

@@ -89,6 +89,19 @@ export interface ArchivedPlan {
   className: string;
 }
 
+export interface ArchivedAttendance {
+  id: string;
+  schoolId?: string;
+  reportDate: string;
+  archivedAt: string;
+  absentStudents: {
+    id: string;
+    name: string;
+    className: string;
+    parentPhone: string;
+  }[];
+}
+
 export interface Message {
   id: string;
   schoolId?: string; // Added ownership
