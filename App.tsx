@@ -4,7 +4,7 @@ import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 
 // --- Styles ---
@@ -227,6 +227,7 @@ interface SchoolSystemProps {
   onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => boolean;
   pricing: PricingConfig; // Received from App
   availableSchools: SchoolMetadata[]; // For switcher
+  initialView?: ViewState; // NEW: For smart navigation
 }
 
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
@@ -238,9 +239,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   onRegisterSchool,
   onUpgradeSubscription,
   pricing,
-  availableSchools
+  availableSchools,
+  initialView = ViewState.HOME
 }) => {
-  const [view, setView] = useState<ViewState>(ViewState.HOME);
+  const [view, setView] = useState<ViewState>(initialView);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -342,7 +344,9 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
       
       setShowRegisterModal(false);
       setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
-      alert('تم التسجيل بنجاح! لديك فترة تجريبية لمدة 14 يوماً.');
+      // SMART ACTION: Auto-login after registration
+      setView(ViewState.ADMIN);
+      alert('تم التسجيل بنجاح! تم توجيهك للوحة التحكم مباشرة.');
   };
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
@@ -716,6 +720,11 @@ const SystemDashboard: React.FC<{
         setIsSaving(false);
     };
 
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        alert('تم نسخ البيانات: ' + text);
+    };
+
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col" dir="rtl">
             <div className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
@@ -749,10 +758,13 @@ const SystemDashboard: React.FC<{
                     {activeTab === 'schools' && (
                         <div className="grid gap-4">
                             {schools.map(school => (
-                                <div key={school.id} className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-center border border-slate-200 hover:border-indigo-300 transition-all">
-                                    <div>
+                                <div key={school.id} className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-start border border-slate-200 hover:border-indigo-300 transition-all group">
+                                    <div className="flex-1">
                                         <h3 className="font-bold text-lg text-slate-800">{school.name}</h3>
-                                        <p className="text-[10px] text-slate-400 font-mono mt-1">ID: {school.id}</p>
+                                        <div className="flex items-center gap-3 text-[10px] mt-1">
+                                            <span className="text-slate-400 font-mono">ID: {school.id}</span>
+                                            <button onClick={() => copyToClipboard(`User: ${school.adminUsername}\nPass: ${school.adminPassword}`)} className="text-indigo-400 hover:text-indigo-600 flex items-center gap-1" title="نسخ بيانات الدخول"><Key size={12}/> بيانات الدخول</button>
+                                        </div>
                                         <div className="flex gap-2 mt-3">
                                             <span className={`text-[10px] px-2 py-1 rounded font-bold ${school.isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                                                 {school.isActive ? 'نشط' : 'غير نشط'}
@@ -762,9 +774,14 @@ const SystemDashboard: React.FC<{
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => onSelectSchool(school.id)} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-indigo-100 transition-colors">إدارة</button>
-                                        <button onClick={() => onDeleteSchool(school.id)} className="bg-rose-50 text-rose-600 px-3 py-2 rounded-lg hover:bg-rose-100 transition-colors"><Trash2 size={16}/></button>
+                                    <div className="flex flex-col gap-2">
+                                        <button 
+                                            onClick={() => onSelectSchool(school.id)} 
+                                            className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                                        >
+                                            <LogIn size={16}/> إدارة المدرسة
+                                        </button>
+                                        <button onClick={() => onDeleteSchool(school.id)} className="text-rose-400 hover:text-rose-600 text-xs flex items-center justify-end gap-1 px-2 py-1"><Trash2 size={12}/> حذف</button>
                                     </div>
                                 </div>
                             ))}
@@ -904,6 +921,9 @@ const App: React.FC = () => {
   // State for System
   const [systemView, setSystemView] = useState<'SCHOOL' | 'SYSTEM'>('SCHOOL');
   const [activeSchoolId, setActiveSchoolId] = useState<string | null>(localStorage.getItem('last_school_id'));
+  // NEW: Track intended view mode (Home vs Admin) for smart navigation
+  const [initialView, setInitialView] = useState<ViewState>(ViewState.HOME);
+
   const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
       try {
         const saved = localStorage.getItem('system_schools');
@@ -993,6 +1013,8 @@ const App: React.FC = () => {
       
       setSchools(prev => [...prev, newSchool]);
       setActiveSchoolId(newSchool.id);
+      // Smart Nav: Newly registered school opens in Admin mode
+      setInitialView(ViewState.ADMIN); 
   };
 
   const handleUpgradeSubscription = (schoolId: string, plan: SubscriptionPlan, code: string) => {
@@ -1041,7 +1063,11 @@ const App: React.FC = () => {
       return (
           <SystemDashboard 
               schools={schools}
-              onSelectSchool={(id) => { setActiveSchoolId(id); setSystemView('SCHOOL'); }}
+              onSelectSchool={(id) => { 
+                  setActiveSchoolId(id); 
+                  setInitialView(ViewState.ADMIN); // Smart Nav: Managing from dashboard implies admin access
+                  setSystemView('SCHOOL'); 
+              }}
               onDeleteSchool={(id) => { if(window.confirm('هل أنت متأكد؟')) setSchools(prev => prev.filter(s => s.id !== id)); }}
               onLogout={() => setSystemView('SCHOOL')}
               pricing={pricing}
@@ -1056,13 +1082,14 @@ const App: React.FC = () => {
             key={effectiveSchool.id} 
             schoolId={effectiveSchool.id}
             schoolMetadata={effectiveSchool}
-            onSwitchSchool={setActiveSchoolId}
+            onSwitchSchool={(id) => { setActiveSchoolId(id); setInitialView(ViewState.HOME); }}
             onOpenSystemAdmin={() => setSystemView('SYSTEM')}
             isCloudConnected={isCloudConnected}
             onRegisterSchool={handleRegisterSchool}
             onUpgradeSubscription={handleUpgradeSubscription}
             pricing={pricing}
             availableSchools={schools}
+            initialView={initialView} // Pass the smart view state
         />
     </ErrorBoundary>
   );
