@@ -1,20 +1,54 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# نظام الخطط الأسبوعية (Madrasti Planner)
 
-# Run and deploy your AI Studio app
+نظام إدارة الخطط الأسبوعية المدرسية، مبني باستخدام React + Vite + TailwindCSS ويدعم الربط مع Firebase.
 
-This contains everything you need to run your app locally.
+## 🚀 طريقة النشر على GitHub
 
-View your app in AI Studio: https://ai.studio/apps/drive/1LjuOUUJnd4-JKXk7tBhFbEregNzgMWdX
+لرفع المشروع على حسابك في GitHub، اتبع الخطوات التالية في التيرمينال (Terminal):
 
-## Run Locally
+1. **تهيئة Git:**
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   ```
 
-**Prerequisites:**  Node.js
+2. **إنشاء مستودع (Repository) جديد على GitHub:**
+   - اذهب إلى [GitHub New Repository](https://github.com/new).
+   - اكتب اسم المشروع (مثلاً: `madrasti-planner`).
+   - لا تقم بإضافة README أو .gitignore من هناك (لأننا أضفناها محلياً).
+   - اضغط **Create repository**.
 
+3. **ربط المشروع ورفعه:**
+   - انسخ رابط المستودع (مثلاً: `https://github.com/username/madrasti-planner.git`).
+   - نفذ الأوامر التالية (استبدل الرابط برابط مشروعك):
+   ```bash
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+   git push -u origin main
+   ```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🌐 طريقة النشر على Vercel
+
+بمجرد رفع الكود على GitHub، يصبح النشر على Vercel سهلاً جداً:
+
+1. اذهب إلى [Vercel Dashboard](https://vercel.com/new).
+2. اختر **Import Git Repository**.
+3. اختر المستودع الذي أنشأته للتو (`madrasti-planner`).
+4. اضغط **Deploy**.
+   - سيقوم Vercel تلقائياً باكتشاف إعدادات Vite وتشغيل `npm run build`.
+
+## 🗄️ إعدادات قاعدة البيانات (Firebase)
+
+1. أنشئ مشروع جديد في [Firebase Console](https://console.firebase.google.com).
+2. أنشئ قاعدة بيانات **Firestore Database**.
+3. انسخ إعدادات الويب (Config) من إعدادات المشروع.
+4. افتح التطبيق، وسجل الدخول كمدير نظام (admin / 123456).
+5. اضغط على زر "ربط قاعدة بيانات" وأدخل البيانات المنسوخة.
+
+## 🛠️ التشغيل محلياً
+
+```bash
+npm install
+npm run dev
+```
