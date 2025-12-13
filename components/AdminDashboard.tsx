@@ -120,16 +120,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const hasClasses = classes && classes.length > 0;
   const [selectedClassId, setSelectedClassId] = useState<string>('');
 
-  // Update selected class if it becomes invalid or empty
+  // Update selected class if it becomes invalid or empty, BUT preserve selection if valid
   useEffect(() => {
     if (hasClasses) {
+        // Only reset if the currently selected ID doesn't exist in the new classes list
         if (!selectedClassId || !classes.find(c => c.id === selectedClassId)) {
             setSelectedClassId(classes[0].id);
         }
     } else {
         setSelectedClassId('');
     }
-  }, [classes, hasClasses, selectedClassId]);
+  }, [classes, hasClasses]); // Removed selectedClassId from deps to prevent loop resets
 
   const activeClass = hasClasses ? classes.find(c => c.id === selectedClassId) || classes[0] : null;
   const classStudents = activeClass ? students.filter(s => s.classId === activeClass.id) : [];
@@ -216,8 +217,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         
         const newStudents: Student[] = [];
         const newClasses: ClassGroup[] = [];
+        
+        // Use a map to track classes being processed in this batch + existing ones
+        // Normalize class names (trim) to prevent duplicates
         const processedClasses = new Map<string, string>(); 
-        classes.forEach(c => processedClasses.set(c.name, c.id));
+        classes.forEach(c => processedClasses.set(c.name.trim(), c.id));
 
         let studentsAddedCount = 0;
         let classesAddedCount = 0;
@@ -227,6 +231,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         let classColIdx = -1; 
         let gradeColIdx = -1; 
         
+        // Detect Header Row
         for (let i = 0; i < Math.min(lines.length, 30); i++) {
             const rowRaw = lines[i];
             const delimiter = rowRaw.includes(';') ? ';' : ',';
@@ -256,17 +261,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const delimiter = lines[i].includes(';') ? ';' : ',';
           const row = lines[i].split(delimiter).map(cell => cell.replace(/["\r]/g, '').trim());
           if (row.length <= nameColIdx) continue;
+          
           const studentName = row[nameColIdx];
-          if (!studentName || studentName.length < 3 || !/[\u0600-\u06FF]/.test(studentName)) continue;
-          if (studentName === 'اسم الطالب') continue; 
+          // Basic validation
+          if (!studentName || studentName.length < 2 || !/[\u0600-\u06FFa-zA-Z]/.test(studentName)) continue;
+          if (studentName.includes('اسم الطالب')) continue; 
+          
           const parentPhone = (phoneColIdx !== -1 && row[phoneColIdx]) ? row[phoneColIdx] : '';
+          
           let finalClassName = "عام";
           let gradeName = "عام";
+          
+          // Logic to determine Class Name from columns
           if (gradeColIdx !== -1 && row[gradeColIdx]) gradeName = row[gradeColIdx];
           let classNum = "";
           if (classColIdx !== -1 && row[classColIdx]) classNum = row[classColIdx];
+          
           if (gradeName !== "عام" && classNum) {
-              const shortGrade = gradeName.split(' ').slice(0, 2).join(' ');
+              // Create readable class name like "First Grade - 1"
+              const shortGrade = gradeName.split(' ').slice(0, 2).join(' '); // Take first 2 words of grade
               finalClassName = `${shortGrade} - ${classNum}`;
           } else if (classNum) {
               finalClassName = classNum;
@@ -276,19 +289,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               finalClassName = row[classColIdx]; // Direct fallback for template
           }
 
+          finalClassName = finalClassName.trim();
+
+          // Check if class exists or needs creation
           let classId = processedClasses.get(finalClassName);
           if (!classId) {
              classId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-             const newClassGroup: ClassGroup = { id: classId, schoolId: schoolId, name: finalClassName, grade: gradeName };
+             const newClassGroup: ClassGroup = { 
+                 id: classId, 
+                 schoolId: schoolId, // Ensure strict ownership
+                 name: finalClassName, 
+                 grade: gradeName 
+             };
              newClasses.push(newClassGroup);
              processedClasses.set(finalClassName, classId);
              classesAddedCount++;
           }
+          
+          // Avoid duplicate students (by name) within the *existing* and *new* list
           const isDuplicate = students.some(s => s.name === studentName) || newStudents.some(s => s.name === studentName);
+          
           if (!isDuplicate) {
               newStudents.push({ 
                   id: `s_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
-                  schoolId: schoolId,
+                  schoolId: schoolId, // Ensure strict ownership
                   name: studentName, 
                   parentPhone: parentPhone, 
                   classId: classId, 
@@ -297,14 +321,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               studentsAddedCount++;
           }
         }
-        if (newClasses.length > 0) onSetClasses([...classes, ...newClasses]);
-        if (newStudents.length > 0) onSetStudents([...students, ...newStudents]);
 
-        if (studentsAddedCount === 0 && classesAddedCount === 0) alert('لم يتم العثور على بيانات. تأكد من صحة الملف.');
-        else alert(`تم الاستيراد بنجاح:\n- ${studentsAddedCount} طالب\n- ${classesAddedCount} فصل جديد`);
+        // Batch Update
+        if (newClasses.length > 0) {
+            const updatedClasses = [...classes, ...newClasses];
+            onSetClasses(updatedClasses);
+            // Switch view to the first new class imported
+            setSelectedClassId(newClasses[0].id);
+        }
+        
+        if (newStudents.length > 0) {
+            onSetStudents([...students, ...newStudents]);
+        }
+
+        if (studentsAddedCount === 0 && classesAddedCount === 0) {
+            alert('لم يتم العثور على بيانات جديدة. قد تكون البيانات موجودة مسبقاً.');
+        } else {
+            alert(`تم الاستيراد بنجاح:\n- ${studentsAddedCount} طالب\n- ${classesAddedCount} فصل جديد`);
+        }
         
       } catch (error: any) {
-        alert('حدث خطأ: ' + error.message);
+        alert('حدث خطأ أثناء معالجة الملف: ' + error.message);
       } finally {
         setImportLoading(false);
         if(fileInputRef.current) fileInputRef.current.value = '';
