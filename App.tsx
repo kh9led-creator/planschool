@@ -455,6 +455,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             onArchivePlan={(name, week, entries) => setArchivedPlans(prev => [{id: Date.now().toString(), archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: week, entries, name, className: classes[0]?.name || 'عام'}, ...prev])}
             onClearPlans={() => { if(window.confirm('تأكيد تفريغ الخطط؟')) setPlanEntries([]) }}
             archivedPlans={archivedPlans}
+            onDeleteArchive={(id) => setArchivedPlans(prev => prev.filter(a => a.id !== id))}
             onAddClass={(c) => setClasses(prev => [...prev, c])}
             onUpdateSchedule={(s) => setSchedule(prev => [...prev.filter(old => !(old.classId === s.classId && old.dayIndex === s.dayIndex && old.period === s.period)), s])}
             attendanceRecords={attendanceRecords}
@@ -470,389 +471,191 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 };
 
 // --- 5. System Admin Dashboard ---
-
 interface SystemDashboardProps {
-    schools: SchoolMetadata[];
-    onToggleStatus: (id: string) => void;
-    onDeleteSchool: (id: string) => void;
-    onCreateSchool: () => void;
-    onLogout: () => void;
-    dbConfig: FirebaseConfig | null;
-    onSaveDbConfig: (config: FirebaseConfig | null) => void;
+  config: FirebaseConfig;
+  onSaveConfig: (cfg: FirebaseConfig) => void;
+  schools: SchoolMetadata[];
+  onAddSchool: (name: string) => void;
+  onToggleSchool: (id: string) => void;
+  onDeleteSchool: (id: string) => void;
+  onClose: () => void;
 }
 
-const SystemDashboard: React.FC<SystemDashboardProps> = ({ 
-    schools, onToggleStatus, onDeleteSchool, onCreateSchool, onLogout, dbConfig, onSaveDbConfig 
+const SystemDashboard: React.FC<SystemDashboardProps> = ({
+  config, onSaveConfig, schools, onAddSchool, onToggleSchool, onDeleteSchool, onClose
 }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showDbModal, setShowDbModal] = useState(false);
-    
-    // DB Config Form
-    const [apiKey, setApiKey] = useState(dbConfig?.apiKey || '');
-    const [authDomain, setAuthDomain] = useState(dbConfig?.authDomain || '');
-    const [projectId, setProjectId] = useState(dbConfig?.projectId || '');
-    const [storageBucket, setStorageBucket] = useState(dbConfig?.storageBucket || '');
-    const [messagingSenderId, setMessagingSenderId] = useState(dbConfig?.messagingSenderId || '');
-    const [appId, setAppId] = useState(dbConfig?.appId || '');
+  const [localConfig, setLocalConfig] = useState<FirebaseConfig>(config);
+  const [newSchoolName, setNewSchoolName] = useState('');
 
-    const filteredSchools = schools.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const handleSave = () => {
+    onSaveConfig(localConfig);
+  };
 
-    const handleSaveConfig = () => {
-        if (!apiKey || !projectId) {
-            alert('يجب إدخال البيانات الأساسية (API Key, Project ID)');
-            return;
-        }
-        onSaveDbConfig({ apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId });
-        setShowDbModal(false);
-        alert('تم حفظ الإعدادات. سيتم إعادة تحميل الصفحة لتطبيق الاتصال.');
-        window.location.reload();
-    };
-
-    const handleDisconnect = () => {
-        if(window.confirm('هل أنت متأكد من قطع الاتصال بقاعدة البيانات السحابية؟')) {
-            onSaveDbConfig(null);
-            setShowDbModal(false);
-            window.location.reload();
-        }
-    }
-
-    return (
-        <div className="min-h-screen bg-slate-100 p-8 font-sans">
-            <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                            <div className="bg-indigo-100 p-2 rounded-lg"><UserCog size={28} className="text-indigo-600"/></div>
-                            لوحة تحكم النظام
-                        </h1>
-                        <p className="text-slate-500 mt-1 text-sm mr-12">إدارة المدارس وتراخيص التشغيل</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={() => setShowDbModal(true)}
-                            className={`px-5 py-2.5 rounded-xl font-bold transition-colors text-sm flex items-center gap-2 ${dbConfig ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}
-                        >
-                            <Database size={16}/>
-                            {dbConfig ? 'إعدادات القاعدة (متصل)' : 'ربط قاعدة بيانات'}
-                        </button>
-                        <button onClick={onLogout} className="bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-300 transition-colors text-sm">
-                            تسجيل خروج
-                        </button>
-                    </div>
-                </div>
-
-                {showDbModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-fadeIn">
-                             <div className="flex justify-between items-center mb-4 border-b pb-4">
-                                 <h3 className="text-lg font-bold flex items-center gap-2">
-                                     <Cloud size={20} className="text-indigo-600"/>
-                                     إعدادات Google Firebase Firestore
-                                 </h3>
-                                 <button onClick={() => setShowDbModal(false)}><X size={20} className="text-gray-400"/></button>
-                             </div>
-                             <div className="space-y-3 max-h-[60vh] overflow-y-auto p-1">
-                                 <p className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                                     قم بإنشاء مشروع في <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-600 underline">Firebase Console</a>، ثم انسخ إعدادات الويب (Web App Config) وضعها هنا.
-                                 </p>
-                                 <div><label className="text-xs font-bold block mb-1">apiKey</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={apiKey} onChange={e => setApiKey(e.target.value)}/></div>
-                                 <div><label className="text-xs font-bold block mb-1">authDomain</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={authDomain} onChange={e => setAuthDomain(e.target.value)}/></div>
-                                 <div><label className="text-xs font-bold block mb-1">projectId</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={projectId} onChange={e => setProjectId(e.target.value)}/></div>
-                                 <div><label className="text-xs font-bold block mb-1">storageBucket</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={storageBucket} onChange={e => setStorageBucket(e.target.value)}/></div>
-                                 <div><label className="text-xs font-bold block mb-1">messagingSenderId</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={messagingSenderId} onChange={e => setMessagingSenderId(e.target.value)}/></div>
-                                 <div><label className="text-xs font-bold block mb-1">appId</label><input className="w-full border p-2 rounded text-sm font-mono dir-ltr" value={appId} onChange={e => setAppId(e.target.value)}/></div>
-                             </div>
-                             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                                 {dbConfig && (
-                                     <button onClick={handleDisconnect} className="text-red-600 text-sm font-bold hover:bg-red-50 px-3 py-2 rounded">
-                                         قطع الاتصال
-                                     </button>
-                                 )}
-                                 <button onClick={handleSaveConfig} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2">
-                                     <Save size={16}/> حفظ واتصال
-                                 </button>
-                             </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100">
-                    <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50">
-                        <div className="relative w-full md:w-96 group">
-                            <Search className="absolute right-3 top-3 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18}/>
-                            <input 
-                                type="text" 
-                                placeholder="بحث عن مدرسة..." 
-                                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pr-10 pl-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <button 
-                            onClick={onCreateSchool}
-                            className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5"
-                        >
-                            <PlusCircle size={20}/>
-                            تسجيل مدرسة جديدة
-                        </button>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-right">
-                            <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                                <tr>
-                                    <th className="p-5 border-b">اسم المدرسة</th>
-                                    <th className="p-5 border-b">تاريخ التسجيل</th>
-                                    <th className="p-5 border-b">المعرف (ID)</th>
-                                    <th className="p-5 border-b text-center">الحالة</th>
-                                    <th className="p-5 border-b text-center">الإجراءات</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
-                                {filteredSchools.map(school => (
-                                    <tr key={school.id} className="hover:bg-indigo-50/30 transition-colors">
-                                        <td className="p-5 font-bold text-slate-800">{school.name}</td>
-                                        <td className="p-5 font-mono text-slate-500">{new Date(school.createdAt).toLocaleDateString('ar-SA')}</td>
-                                        <td className="p-5 font-mono text-xs text-slate-400">{school.id}</td>
-                                        <td className="p-5 text-center">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${school.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                {school.isActive ? <Check size={12}/> : <Power size={12}/>}
-                                                {school.isActive ? 'نشطة' : 'موقوفة'}
-                                            </span>
-                                        </td>
-                                        <td className="p-5 flex justify-center gap-2">
-                                            <button 
-                                                onClick={() => onToggleStatus(school.id)}
-                                                className={`p-2 rounded-lg transition-all border ${school.isActive ? 'text-red-500 border-red-200 hover:bg-red-50' : 'text-green-600 border-green-200 hover:bg-green-50'}`}
-                                                title={school.isActive ? "إيقاف" : "تفعيل"}
-                                            >
-                                                <Power size={18}/>
-                                            </button>
-                                            <button 
-                                                onClick={() => onDeleteSchool(school.id)}
-                                                className="p-2 rounded-lg text-slate-400 hover:text-red-600 border border-transparent hover:bg-red-50 transition-colors"
-                                                title="حذف نهائي"
-                                            >
-                                                <Trash2 size={18}/>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4" dir="rtl">
+      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+        {/* Sidebar */}
+        <div className="bg-slate-800 text-white p-6 md:w-1/3 flex flex-col justify-between">
+           <div>
+              <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                  <UserCog /> إدارة النظام
+              </h2>
+              <p className="text-slate-400 text-sm">إعدادات الربط السحابي وإدارة المدارس</p>
+           </div>
+           <button onClick={onClose} className="mt-8 bg-white/10 hover:bg-white/20 text-white py-2 px-4 rounded-lg flex items-center gap-2 w-fit transition-colors">
+              <Power size={16} /> خروج للنظام
+           </button>
         </div>
-    );
+
+        {/* Content */}
+        <div className="p-8 md:w-2/3 space-y-8 overflow-y-auto max-h-[90vh]">
+            <section>
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                    <Cloud className="text-indigo-500"/> إعدادات Firebase
+                </h3>
+                <div className="grid grid-cols-1 gap-3">
+                    <input type="text" placeholder="apiKey" className="input-field" value={localConfig.apiKey} onChange={e => setLocalConfig({...localConfig, apiKey: e.target.value})} />
+                    <input type="text" placeholder="authDomain" className="input-field" value={localConfig.authDomain} onChange={e => setLocalConfig({...localConfig, authDomain: e.target.value})} />
+                    <input type="text" placeholder="projectId" className="input-field" value={localConfig.projectId} onChange={e => setLocalConfig({...localConfig, projectId: e.target.value})} />
+                    <input type="text" placeholder="storageBucket" className="input-field" value={localConfig.storageBucket} onChange={e => setLocalConfig({...localConfig, storageBucket: e.target.value})} />
+                    <input type="text" placeholder="messagingSenderId" className="input-field" value={localConfig.messagingSenderId} onChange={e => setLocalConfig({...localConfig, messagingSenderId: e.target.value})} />
+                    <input type="text" placeholder="appId" className="input-field" value={localConfig.appId} onChange={e => setLocalConfig({...localConfig, appId: e.target.value})} />
+                    
+                    <button onClick={handleSave} className="bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 mt-2">
+                        <Save size={16}/> حفظ الاتصال
+                    </button>
+                </div>
+            </section>
+
+            <section>
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                    <Building2 className="text-emerald-500"/> المدارس المسجلة
+                </h3>
+                <div className="flex gap-2 mb-4">
+                    <input 
+                        type="text" 
+                        placeholder="اسم المدرسة الجديدة" 
+                        className="input-field flex-1"
+                        value={newSchoolName}
+                        onChange={e => setNewSchoolName(e.target.value)}
+                    />
+                    <button 
+                        onClick={() => { if(newSchoolName) { onAddSchool(newSchoolName); setNewSchoolName(''); } }}
+                        className="bg-emerald-600 text-white px-4 rounded-lg hover:bg-emerald-700 transition-colors"
+                    >
+                        <PlusCircle size={20}/>
+                    </button>
+                </div>
+                <div className="space-y-2">
+                    {schools.map(s => (
+                        <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                             <div className="flex items-center gap-3">
+                                 <button onClick={() => onToggleSchool(s.id)} className={`${s.isActive ? 'text-green-500' : 'text-slate-300'}`}>
+                                     <Power size={18}/>
+                                 </button>
+                                 <span className={`font-bold ${!s.isActive && 'text-slate-400 line-through'}`}>{s.name}</span>
+                             </div>
+                             <button onClick={() => onDeleteSchool(s.id)} className="text-rose-400 hover:text-rose-600">
+                                 <Trash2 size={16}/>
+                             </button>
+                        </div>
+                    ))}
+                    {schools.length === 0 && <p className="text-center text-slate-400 text-sm">لا توجد مدارس مضافة</p>}
+                </div>
+            </section>
+        </div>
+      </div>
+      <style>{`
+        .input-field {
+            @apply w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors;
+        }
+      `}</style>
+    </div>
+  );
 };
 
 // --- 6. Main App Component ---
-
 const App: React.FC = () => {
-  // Use a simple local state for registry, eventually this should also move to DB but for now we keep it simple
-  const [schoolRegistry, setSchoolRegistry] = useState<SchoolMetadata[]>(() => {
-       const saved = localStorage.getItem('madrasti_registry_v3');
-       return saved ? JSON.parse(saved) : [{ id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true }];
-  });
+    // System State
+    const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfig>(() => {
+        try {
+            const saved = localStorage.getItem('sys_firebase_config');
+            return saved ? JSON.parse(saved) : { apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' };
+        } catch {
+             return { apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' };
+        }
+    });
 
-  const [currentSchoolId, setCurrentSchoolId] = useState<string>(() => localStorage.getItem('madrasti_current_school_id') || 'default');
-  
-  // Database Config State
-  const [dbConfig, setDbConfig] = useState<FirebaseConfig | null>(() => {
-      const saved = localStorage.getItem('madrasti_firebase_config');
-      return saved ? JSON.parse(saved) : null;
-  });
+    const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
+        try {
+            const saved = localStorage.getItem('sys_schools');
+            return saved ? JSON.parse(saved) : [{ id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true }];
+        } catch {
+             return [{ id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true }];
+        }
+    });
 
-  const [isCloudConnected, setIsCloudConnected] = useState(false);
+    const [currentSchoolId, setCurrentSchoolId] = useState<string>(() => localStorage.getItem('sys_current_school') || 'default');
+    const [isSystemAdminOpen, setIsSystemAdminOpen] = useState(false);
+    const [isCloudConnected, setIsCloudConnected] = useState(false);
 
-  // Initialize Firebase on App Start if config exists
-  useEffect(() => {
-      if (dbConfig) {
-          const success = initFirebase(dbConfig);
-          setIsCloudConnected(success);
-      } else {
-          setIsCloudConnected(false);
-      }
-  }, [dbConfig]);
+    // Persist System Config
+    useEffect(() => {
+        localStorage.setItem('sys_firebase_config', JSON.stringify(firebaseConfig));
+        localStorage.setItem('sys_schools', JSON.stringify(schools));
+        localStorage.setItem('sys_current_school', currentSchoolId);
+    }, [firebaseConfig, schools, currentSchoolId]);
 
-  // Persist Registry & Current School (Local only for metadata)
-  useEffect(() => {
-      localStorage.setItem('madrasti_registry_v3', JSON.stringify(schoolRegistry));
-  }, [schoolRegistry]);
+    // Initialize Cloud
+    useEffect(() => {
+        if (firebaseConfig.apiKey) {
+            const success = initFirebase(firebaseConfig);
+            setIsCloudConnected(success);
+        }
+    }, [firebaseConfig]);
 
-  useEffect(() => {
-      localStorage.setItem('madrasti_current_school_id', currentSchoolId);
-  }, [currentSchoolId]);
+    // Handlers
+    const handleAddSchool = (name: string) => {
+        const newSchool: SchoolMetadata = {
+            id: `sch_${Date.now()}`,
+            name,
+            createdAt: new Date().toISOString(),
+            isActive: true
+        };
+        setSchools(prev => [...prev, newSchool]);
+        if (schools.length === 0) setCurrentSchoolId(newSchool.id);
+    };
 
-  
-  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
-  const [showSystemLogin, setShowSystemLogin] = useState(false);
-  const [sysUsername, setSysUsername] = useState('');
-  const [sysPassword, setSysPassword] = useState('');
-
-  // SAFEGUARD: Ensure currentSchool exists
-  const currentSchool = schoolRegistry.find(s => s.id === currentSchoolId);
-
-  // Auto-Repair
-  if (!currentSchool) {
-      if (schoolRegistry.length > 0) {
-          setCurrentSchoolId(schoolRegistry[0].id);
-      } else {
-          const defaultSchool = { id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true };
-          setSchoolRegistry([defaultSchool]);
-          setCurrentSchoolId('default');
-      }
-      return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-indigo-600" size={32}/></div>;
-  }
-
-  const handleCreateSchool = () => {
-      const name = prompt('أدخل اسم المدرسة الجديدة:');
-      if(name) {
-          const newId = `school_${Date.now()}`;
-          const newSchool: SchoolMetadata = {
-              id: newId,
-              name: name,
-              createdAt: new Date().toISOString(),
-              isActive: true
-          };
-          setSchoolRegistry(prev => [...prev, newSchool]);
-          if(!isSystemAdmin) setCurrentSchoolId(newId);
-          else alert('تم إنشاء المدرسة بنجاح.');
-      }
-  };
-
-  const handleSystemLogin = (e: React.FormEvent) => {
-      e.preventDefault();
-      if(sysUsername === 'master' && sysPassword === 'master123') {
-          setIsSystemAdmin(true);
-          setShowSystemLogin(false);
-          setSysUsername('');
-          setSysPassword('');
-      } else {
-          alert('بيانات مدير النظام غير صحيحة');
-      }
-  };
-
-  const toggleSchoolStatus = (id: string) => {
-      setSchoolRegistry(prev => prev.map(s => 
-          s.id === id ? { ...s, isActive: !s.isActive } : s
-      ));
-  };
-
-  const handleDeleteSchool = (id: string) => {
-      if (schoolRegistry.length <= 1) {
-          alert("لا يمكن حذف المدرسة الوحيدة في النظام.");
-          return;
-      }
-      if(window.confirm('تحذير: سيتم حذف المدرسة نهائياً مع كافة البيانات. هل أنت متأكد؟')) {
-          if (currentSchoolId === id) {
-             const nextSchool = schoolRegistry.find(s => s.id !== id);
-             if (nextSchool) setCurrentSchoolId(nextSchool.id);
-          }
-          setSchoolRegistry(prev => prev.filter(s => s.id !== id));
-      }
-  };
-
-  const saveDbConfig = (config: FirebaseConfig | null) => {
-      setDbConfig(config);
-      if (config) localStorage.setItem('madrasti_firebase_config', JSON.stringify(config));
-      else localStorage.removeItem('madrasti_firebase_config');
-  };
-
-  if (isSystemAdmin) {
-      return (
-          <ErrorBoundary>
-            <SystemDashboard 
-                schools={schoolRegistry}
-                onToggleStatus={toggleSchoolStatus}
-                onDeleteSchool={handleDeleteSchool}
-                onCreateSchool={handleCreateSchool}
-                onLogout={() => setIsSystemAdmin(false)}
-                dbConfig={dbConfig}
-                onSaveDbConfig={saveDbConfig}
-            />
-          </ErrorBoundary>
-      );
-  }
-
-  if (showSystemLogin) {
-      return (
-          <div className="min-h-screen bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 z-50 fixed inset-0">
-              <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm relative animate-fadeIn">
-                   <button onClick={() => setShowSystemLogin(false)} className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1">
-                       <X size={20}/>
-                   </button>
-                   <div className="flex flex-col items-center mb-6">
-                       <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mb-4 text-indigo-600 border border-indigo-100">
-                           <UserCog size={32}/>
-                       </div>
-                       <h2 className="text-xl font-bold text-slate-800">مدير النظام</h2>
-                       <p className="text-slate-500 text-sm">الوصول المقيد للإدارة العليا</p>
-                   </div>
-                   <form onSubmit={handleSystemLogin} className="space-y-4">
-                       <div>
-                           <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">اسم المستخدم</label>
-                           <input 
-                             type="text" 
-                             className="w-full border border-slate-200 p-3 rounded-xl bg-slate-50 dir-ltr text-center focus:ring-2 focus:ring-indigo-500 outline-none" 
-                             value={sysUsername}
-                             onChange={e => setSysUsername(e.target.value)}
-                           />
-                       </div>
-                       <div>
-                           <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">كلمة المرور</label>
-                           <input 
-                             type="password" 
-                             className="w-full border border-slate-200 p-3 rounded-xl bg-slate-50 dir-ltr text-center focus:ring-2 focus:ring-indigo-500 outline-none" 
-                             value={sysPassword}
-                             onChange={e => setSysPassword(e.target.value)}
-                           />
-                       </div>
-                       <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 mt-2 shadow-lg shadow-indigo-200">
-                           تسجيل دخول
-                       </button>
-                   </form>
-              </div>
-          </div>
-      )
-  }
-
-  if (currentSchool && !currentSchool.isActive && !isSystemAdmin) {
-      return (
-          <div className="min-h-screen bg-red-50 flex flex-col items-center justify-center p-8 text-center font-sans">
-              <div className="bg-white p-8 rounded-3xl shadow-xl max-w-lg w-full border border-red-100">
-                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <AlertOctagon size={40} className="text-red-500"/>
-                  </div>
-                  <h1 className="text-2xl font-bold text-red-600 mb-3">المدرسة متوقفة حالياً</h1>
-                  <p className="text-gray-600 mb-8 leading-relaxed">
-                      عذراً، تم إيقاف الخدمة عن <strong>{currentSchool.name}</strong> مؤقتاً من قبل إدارة النظام.
-                  </p>
-                  
-                  <div className="flex flex-col gap-3">
-                      <button onClick={() => setShowSystemLogin(true)} className="text-slate-400 hover:text-indigo-600 text-sm flex items-center justify-center gap-2 py-2 transition-colors">
-                          <UserCog size={16}/> تسجيل دخول مدير النظام
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
-  return (
-    <ErrorBoundary>
-        <SchoolSystem 
-           key={currentSchoolId} 
-           schoolId={currentSchoolId} 
-           schoolName={currentSchool.name}
-           availableSchools={schoolRegistry}
-           onSwitchSchool={setCurrentSchoolId}
-           onOpenSystemAdmin={() => setShowSystemLogin(true)}
-           isCloudConnected={isCloudConnected}
-        />
-    </ErrorBoundary>
-  );
+    return (
+        <ErrorBoundary>
+            {isSystemAdminOpen ? (
+                <SystemDashboard 
+                    config={firebaseConfig}
+                    onSaveConfig={(cfg) => { setFirebaseConfig(cfg); setIsSystemAdminOpen(false); }}
+                    schools={schools}
+                    onAddSchool={handleAddSchool}
+                    onToggleSchool={(id) => setSchools(prev => prev.map(s => s.id === id ? {...s, isActive: !s.isActive} : s))}
+                    onDeleteSchool={(id) => {
+                        if (window.confirm('حذف المدرسة سيخفيها من القائمة. هل أنت متأكد؟')) {
+                            const newSchools = schools.filter(s => s.id !== id);
+                            setSchools(newSchools);
+                            if (currentSchoolId === id) setCurrentSchoolId(newSchools.length > 0 ? newSchools[0].id : '');
+                        }
+                    }}
+                    onClose={() => setIsSystemAdminOpen(false)}
+                />
+            ) : (
+                <SchoolSystem 
+                    schoolId={currentSchoolId}
+                    schoolName={schools.find(s => s.id === currentSchoolId)?.name || 'مدرسة غير محددة'}
+                    availableSchools={schools}
+                    onSwitchSchool={setCurrentSchoolId}
+                    onOpenSystemAdmin={() => setIsSystemAdminOpen(true)}
+                    isCloudConnected={isCloudConnected}
+                />
+            )}
+        </ErrorBoundary>
+    );
 };
 
 export default App;

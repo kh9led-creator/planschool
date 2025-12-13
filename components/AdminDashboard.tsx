@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 
 interface AdminDashboardProps {
@@ -24,6 +24,7 @@ interface AdminDashboardProps {
   onArchivePlan: (name: string, week: WeekInfo, entries: PlanEntry[]) => void;
   onClearPlans: () => void;
   archivedPlans: ArchivedPlan[];
+  onDeleteArchive?: (id: string) => void;
   onAddClass: (c: ClassGroup) => void;
   onUpdateSchedule: (s: ScheduleSlot) => void;
   attendanceRecords: AttendanceRecord[];
@@ -63,6 +64,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onArchivePlan,
   onClearPlans,
   archivedPlans,
+  onDeleteArchive,
   onAddClass,
   onUpdateSchedule,
   attendanceRecords,
@@ -121,8 +123,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [scheduleForm, setScheduleForm] = useState({ subjectId: '', teacherId: '' });
 
   // Messaging State
-  const [messageRecipient, setMessageRecipient] = useState('all');
-  const [messageContent, setMessageContent] = useState('');
+  const [msgFilter, setMsgFilter] = useState<string>('all'); // 'all' for broadcasts, or teacherId
+  const [newMessageText, setNewMessageText] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Archive Viewing State
+  const [viewingArchive, setViewingArchive] = useState<ArchivedPlan | null>(null);
 
   // Search Terms
   const [studentSearch, setStudentSearch] = useState('');
@@ -475,6 +481,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           timestamp: new Date().toLocaleTimeString('ar-SA')
       });
   };
+
+  // Messages Logic
+  const handleAdminSendMessage = () => {
+      if(!newMessageText.trim()) return;
+      const msg: Message = {
+          id: `msg_${Date.now()}`,
+          senderId: 'admin',
+          senderName: 'الإدارة',
+          receiverId: msgFilter, // 'all' or specific teacherId
+          content: newMessageText,
+          timestamp: new Date().toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'}),
+          isRead: false,
+          type: msgFilter === 'all' ? 'announcement' : 'direct'
+      };
+      onSendMessage(msg);
+      setNewMessageText('');
+  };
+
+  const getFilteredMessages = () => {
+      return messages.filter(m => {
+          if (msgFilter === 'all') {
+              // Show announcements (messages to 'all') OR all messages sent by any teacher to admin
+              return m.receiverId === 'all' || m.receiverId === 'admin';
+          } else {
+              // Conversation between admin and specific teacher
+              return (m.senderId === 'admin' && m.receiverId === msgFilter) || 
+                     (m.senderId === msgFilter && m.receiverId === 'admin');
+          }
+      }).sort((a,b) => a.id.localeCompare(b.id)); // sort by ID (roughly timestamp)
+  };
+
+  useEffect(() => {
+      if (activeTab === 'messages' && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+  }, [messages, activeTab, msgFilter]);
 
   const filteredStudents = classStudents.filter(s => s.name.includes(studentSearch));
 
@@ -858,6 +900,211 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
+        {/* --- MESSAGES TAB --- */}
+        {activeTab === 'messages' && (
+            <div className="animate-fadeIn h-[calc(100vh-200px)] min-h-[500px]">
+                <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden h-full flex flex-col md:flex-row">
+                    {/* Sidebar */}
+                    <div className="w-full md:w-80 border-l border-slate-100 bg-slate-50 flex flex-col">
+                        <div className="p-4 border-b border-slate-200 bg-white">
+                            <h3 className="font-bold text-slate-800 mb-1">المحادثات</h3>
+                            <p className="text-xs text-slate-500">اختر معلماً للمراسلة</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            <button 
+                                onClick={() => setMsgFilter('all')}
+                                className={`w-full p-4 flex items-center gap-3 border-b border-slate-100 transition-colors hover:bg-white ${msgFilter === 'all' ? 'bg-white border-r-4 border-r-indigo-500 shadow-sm' : ''}`}
+                            >
+                                <div className="bg-amber-100 p-2.5 rounded-full text-amber-600"><Bell size={20}/></div>
+                                <div className="text-right">
+                                    <p className="font-bold text-sm text-slate-800">تعميم للجميع</p>
+                                    <p className="text-[10px] text-slate-400">إرسال إعلانات عامة</p>
+                                </div>
+                            </button>
+                            {teachers.map(t => (
+                                <button 
+                                    key={t.id}
+                                    onClick={() => setMsgFilter(t.id)}
+                                    className={`w-full p-4 flex items-center gap-3 border-b border-slate-100 transition-colors hover:bg-white ${msgFilter === t.id ? 'bg-white border-r-4 border-r-indigo-500 shadow-sm' : ''}`}
+                                >
+                                    <div className="bg-indigo-100 p-2.5 rounded-full text-indigo-600 font-bold text-xs">
+                                        {t.name.charAt(0)}
+                                    </div>
+                                    <div className="text-right overflow-hidden">
+                                        <p className="font-bold text-sm text-slate-800 truncate">{t.name}</p>
+                                        <p className="text-[10px] text-slate-400">@{t.username}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Chat Area */}
+                    <div className="flex-1 flex flex-col bg-white relative">
+                        {/* Chat Header */}
+                        <div className="p-4 border-b border-slate-100 bg-white/80 backdrop-blur flex justify-between items-center shadow-sm z-10">
+                            <div className="flex items-center gap-3">
+                                {msgFilter === 'all' ? (
+                                    <>
+                                        <div className="bg-amber-500 p-2 rounded-lg text-white"><Bell size={20}/></div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">تعميم لجميع المعلمين</h3>
+                                            <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={10}/> نشط</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="bg-indigo-600 p-2 rounded-lg text-white"><UserCheck size={20}/></div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">{teachers.find(t => t.id === msgFilter)?.name}</h3>
+                                            <p className="text-xs text-slate-500">محادثة مباشرة</p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Messages List */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                            {getFilteredMessages().length === 0 ? (
+                                <div className="text-center py-20 opacity-50">
+                                    <MessageSquare size={48} className="mx-auto mb-2 text-slate-300"/>
+                                    <p className="text-slate-400">ابدأ المحادثة بإرسال رسالة</p>
+                                </div>
+                            ) : (
+                                getFilteredMessages().map(msg => {
+                                    const isMe = msg.senderId === 'admin';
+                                    return (
+                                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[70%] rounded-2xl p-4 shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tl-none' : 'bg-white text-slate-800 border border-slate-100 rounded-tr-none'}`}>
+                                                {!isMe && <p className="text-[10px] font-bold text-indigo-600 mb-1">{msg.senderName}</p>}
+                                                <p className="text-sm leading-relaxed">{msg.content}</p>
+                                                <p className={`text-[10px] mt-2 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{msg.timestamp}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Input Area */}
+                        <div className="p-4 border-t border-slate-100 bg-white">
+                            <div className="flex gap-3">
+                                <input 
+                                    type="text" 
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                    placeholder="اكتب رسالتك هنا..."
+                                    value={newMessageText}
+                                    onChange={(e) => setNewMessageText(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAdminSendMessage()}
+                                />
+                                <button 
+                                    onClick={handleAdminSendMessage}
+                                    className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                                >
+                                    <Send size={20}/>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- ARCHIVE TAB (Fully Implemented) --- */}
+        {activeTab === 'archive' && (
+             <div className="animate-fadeIn">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {archivedPlans.length === 0 ? (
+                        <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-slate-100 shadow-sm">
+                            <div className="bg-amber-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <History size={32} className="text-amber-400"/>
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-700">الأرشيف فارغ</h3>
+                            <p className="text-slate-400 mt-2">لم يتم أرشفة أي خطط بعد.</p>
+                        </div>
+                    ) : (
+                        archivedPlans.map(plan => (
+                            <div key={plan.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
+                                <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-4 flex justify-between items-center text-white">
+                                    <div className="flex items-center gap-2">
+                                        <FileText size={18} className="text-slate-300"/>
+                                        <span className="font-bold text-sm">{plan.name}</span>
+                                    </div>
+                                    <span className="text-[10px] bg-white/20 px-2 py-1 rounded">{plan.archivedDate}</span>
+                                </div>
+                                <div className="p-5">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">{plan.className}</span>
+                                        <span className="text-xs text-slate-400">{plan.entries.length} درس مسجل</span>
+                                    </div>
+                                    <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
+                                        <button 
+                                            onClick={() => setViewingArchive(plan)}
+                                            className="flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-lg font-bold text-sm hover:bg-indigo-100 flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <Eye size={16}/> معاينة
+                                        </button>
+                                        {onDeleteArchive && (
+                                            <button 
+                                                onClick={() => { if(window.confirm('هل أنت متأكد من حذف هذه الخطة من الأرشيف؟')) onDeleteArchive(plan.id) }}
+                                                className="bg-rose-50 text-rose-600 p-2 rounded-lg hover:bg-rose-100 transition-colors"
+                                                title="حذف من الأرشيف"
+                                            >
+                                                <Trash2 size={18}/>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                 </div>
+
+                 {/* Archive Viewer Modal */}
+                 {viewingArchive && (
+                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 overflow-hidden">
+                         <div className="bg-white w-full max-w-4xl h-[90vh] rounded-2xl flex flex-col shadow-2xl animate-slideDown overflow-hidden">
+                             <div className="bg-slate-800 text-white p-4 flex justify-between items-center shrink-0">
+                                 <div>
+                                     <h3 className="font-bold text-lg flex items-center gap-2"><History size={20}/> معاينة الأرشيف</h3>
+                                     <p className="text-xs text-slate-400">{viewingArchive.name} | {viewingArchive.archivedDate}</p>
+                                 </div>
+                                 <div className="flex items-center gap-3">
+                                     <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+                                         <Printer size={14}/> طباعة
+                                     </button>
+                                     <button onClick={() => setViewingArchive(null)} className="bg-rose-500 hover:bg-rose-600 p-2 rounded-full transition-colors">
+                                         <X size={18}/>
+                                     </button>
+                                 </div>
+                             </div>
+                             <div className="flex-1 overflow-auto bg-slate-100 p-8 flex justify-center">
+                                 <div className="scale-90 origin-top">
+                                     <WeeklyPlanTemplate 
+                                        classGroup={{id: 'archived', name: viewingArchive.className, grade: ''}} // Mock class for display
+                                        weekInfo={viewingArchive.weekInfo}
+                                        schedule={[]} // Archive doesn't store schedule, just entries. Template will render entries correctly based on day/period in PlanEntry
+                                        // Trick: We pass a mock schedule derived from entries to force cells to render if needed, 
+                                        // OR relies on the fact that the Template iterates 1..7.
+                                        // The current Template implementation iterates 1..7 regardless of schedule.
+                                        // However, it looks up subject from schedule. Archive needs to store Subject info or we might lose color context if subject deleted.
+                                        // For simplicity, we use current subjects. If subject deleted, name shows as '-'.
+                                        // Improvement: ArchivedPlan should ideally store snapshot of subjects. 
+                                        // Current impl: We'll do best effort with current subjects.
+                                        planEntries={viewingArchive.entries}
+                                        schoolSettings={schoolSettings}
+                                        subjects={subjects}
+                                     />
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 )}
+             </div>
+        )}
+
         {/* --- SETUP TAB (Updated with Save Button) --- */}
         {activeTab === 'setup' && (
              <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto">
@@ -1014,14 +1261,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* Placeholder Tabs */}
-        {(activeTab === 'messages' || activeTab === 'archive' || activeTab === 'attendance') && (
+        {(activeTab === 'attendance') && (
              <div className="min-h-[400px] bg-white rounded-3xl shadow-sm border border-slate-200 p-10 flex flex-col items-center justify-center text-slate-400 animate-fadeIn">
                  <div className="bg-slate-50 p-6 rounded-full mb-4">
-                    {activeTab === 'messages' && <MessageSquare size={48}/>}
-                    {activeTab === 'archive' && <History size={48}/>}
                     {activeTab === 'attendance' && <Users size={48}/>}
                  </div>
-                 <h3 className="text-2xl font-bold text-slate-300">قريباً: تحسين واجهة {activeTab === 'messages' ? 'الرسائل' : activeTab === 'archive' ? 'الأرشيف' : 'الغياب'}</h3>
+                 <h3 className="text-2xl font-bold text-slate-300">قريباً: تحسين واجهة {activeTab === 'attendance' ? 'الغياب' : ''}</h3>
                  <p className="text-slate-400 mt-2">الوظائف تعمل، لكن التصميم قيد التحديث.</p>
              </div>
         )}
