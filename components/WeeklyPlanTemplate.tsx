@@ -68,13 +68,16 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
   };
 
   return (
-    // A4 Portrait Container: Approx 210mm width. Using tailwind arbitrary values for print precision.
-    <div className="w-full bg-white text-black p-4 mx-auto print:p-0 print:w-[210mm] print:h-[297mm] print:mx-0 overflow-hidden relative flex flex-col justify-between">
+    // STRICT A4 PORTRAIT CONTAINER
+    // Width: 210mm, Height: 297mm. 
+    // Flex-col to distribute height precisely.
+    <div className="bg-white text-black mx-auto overflow-hidden relative flex flex-col justify-between"
+         style={{ width: '210mm', height: '297mm', padding: '5mm' }}>
       
-      {/* Header - Compact for Portrait (12% Height) */}
-      <div className="flex justify-between items-start border-b-2 border-black pb-2 h-[12%]">
+      {/* 1. HEADER SECTION (Approx 10% height) */}
+      <div className="flex justify-between items-start border-b-2 border-black pb-1 mb-1 h-[10%] shrink-0">
         {/* Right Section */}
-        <div className="text-right space-y-0.5 text-[10px] font-bold flex-1 pt-2">
+        <div className="text-right space-y-0.5 text-[10px] font-bold flex-1 pt-1">
           <p>{settings.ministryName}</p>
           <p>{settings.authorityName}</p>
           <p>{settings.directorateName}</p>
@@ -82,16 +85,16 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </div>
         
         {/* Center Section: Logo */}
-        <div className="flex flex-col items-center justify-center flex-1">
+        <div className="flex flex-col items-center justify-center flex-1 h-full">
             <img 
               src={settings.logoUrl}
               alt="Logo" 
-              className="h-20 object-contain print:h-20"
+              className="h-full max-h-[22mm] object-contain"
             />
         </div>
 
         {/* Left Section */}
-        <div className="text-left space-y-0.5 text-[10px] font-bold flex-1 pt-2 flex flex-col items-end">
+        <div className="text-left space-y-0.5 text-[10px] font-bold flex-1 pt-1 flex flex-col items-end">
            <div className="text-right" dir="rtl">
               <p>من: <span className="font-normal">{weekInfo.startDate}</span></p>
               <p>إلى: <span className="font-normal">{weekInfo.endDate}</span></p>
@@ -102,16 +105,16 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </div>
       </div>
 
-      {/* Main Table - Optimized for Portrait Width (68% Height) */}
-      <div className="border-2 border-black flex-1 mt-2 h-[68%]">
+      {/* 2. MAIN TABLE SECTION (Approx 72% height) */}
+      <div className="border-2 border-black flex-1 mb-1 h-[72%] shrink-0 relative">
         <table className="w-full h-full border-collapse text-center table-fixed">
           <thead>
-            <tr className="bg-gray-100 text-[10px] print:text-[9px] h-[4%]">
-              <th className="border border-black p-0.5 w-[5%] font-bold">اليوم</th>
-              <th className="border border-black p-0.5 w-[5%] font-bold">م</th>
-              <th className="border border-black p-0.5 w-[12%] font-bold">المادة</th>
-              <th className="border border-black p-0.5 w-[35%] font-bold">الدرس المقرر</th>
-              <th className="border border-black p-0.5 w-[25%] font-bold">الواجب</th>
+            <tr className="bg-gray-100 text-[9px] h-[3%]">
+              <th className="border border-black p-0.5 w-[4%] font-bold">اليوم</th>
+              <th className="border border-black p-0.5 w-[4%] font-bold">م</th>
+              <th className="border border-black p-0.5 w-[13%] font-bold">المادة</th>
+              <th className="border border-black p-0.5 w-[33%] font-bold">الدرس المقرر</th>
+              <th className="border border-black p-0.5 w-[28%] font-bold">الواجب</th>
               <th className="border border-black p-0.5 w-[18%] font-bold">ملاحظات</th>
             </tr>
           </thead>
@@ -124,46 +127,40 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                 const isFirstPeriod = pIndex === 0;
 
                 return (
-                  <tr key={`${dIndex}-${period}`} className="text-[10px] print:text-[9px]">
-                    {/* Day Column: Vertical Text to save space */}
+                  <tr key={`${dIndex}-${period}`} className="text-[9px] print:text-[8px] h-[2.7%]">
+                    {/* Day Column: Merged vertically */}
                     {isFirstPeriod && (
                       <td 
-                        className="border border-black bg-gray-50 font-bold align-middle" 
+                        className="border border-black bg-gray-50 font-bold vertical-rl writing-vertical-rl p-0"
                         rowSpan={7}
                       >
-                        <div className="flex items-center justify-center h-full w-full writing-vertical-rl transform rotate-180 print:rotate-0 print:writing-mode-vertical">
-                           <span className="block whitespace-nowrap p-1">{day}</span>
+                        <div className="flex items-center justify-center h-full w-full rotate-90 whitespace-nowrap">
+                            {day}
                         </div>
                       </td>
                     )}
                     
                     {/* Period Number */}
-                    <td className="border border-black font-bold bg-gray-50">{period}</td>
+                    <td className="border border-black bg-gray-50 font-bold">{period}</td>
                     
                     {/* Subject */}
-                    <td className={`border border-black font-semibold truncate px-1 ${subject?.color || 'bg-white'}`}>
-                      {subject?.name || '-'}
+                    <td className={`border border-black font-bold truncate px-1 ${subject ? subject.color : ''}`}>
+                      {subject ? subject.name : '-'}
                     </td>
                     
                     {/* Lesson Topic */}
-                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
-                      <div className="line-clamp-1 leading-tight text-[9px]">
-                        {entry?.lessonTopic || ''}
-                      </div>
+                    <td className="border border-black text-right px-1 truncate">
+                       {entry?.lessonTopic || '-'}
                     </td>
                     
                     {/* Homework */}
-                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
-                       <div className="line-clamp-1 leading-tight text-[9px]">
-                        {entry?.homework || ''}
-                       </div>
+                    <td className="border border-black text-right px-1 truncate">
+                        {entry?.homework || '-'}
                     </td>
                     
                     {/* Notes */}
-                    <td className="border border-black text-right px-1 align-middle overflow-hidden">
-                        <div className="line-clamp-1 leading-tight text-[8px]">
-                            {entry?.notes || ''}
-                        </div>
+                    <td className="border border-black text-right px-1 truncate text-[8px]">
+                        {entry?.notes || ''}
                     </td>
                   </tr>
                 );
@@ -173,67 +170,68 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </table>
       </div>
 
-      {/* Footer Notes - Side by Side (18% Height) */}
-      <div className="mt-2 border-2 border-black flex h-[18%]">
-        {/* Right Note (General) */}
-        <div className="w-1/2 border-l-2 border-black p-1 flex flex-col">
-          <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-[10px]">رسائل عامة</h3>
-          <textarea
-            className={`w-full h-full text-right text-[10px] resize-none focus:outline-none bg-transparent p-1 leading-snug ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
-            value={settings.footerNotesRight}
-            onChange={(e) => handleFooterChange('footerNotesRight', e.target.value)}
-            readOnly={!onUpdateSettings}
-          />
-        </div>
-        
-        {/* Left Note (School Specific/Image) */}
-        <div className="w-1/2 p-1 flex flex-col relative group">
-            <h3 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-[10px] flex items-center justify-center gap-2">
-                ملاحظات المدرسة
-                {onUpdateSettings && (
-                     <label className="cursor-pointer print:hidden p-0.5 hover:bg-gray-200 rounded-full" title="رفع صورة">
-                        <ImageIcon size={10} className="text-gray-500 hover:text-blue-600"/>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleNoteImageUpload}/>
-                     </label>
-                )}
-            </h3>
-            
-            <div className="flex-1 flex flex-col justify-center items-center overflow-hidden">
-                {/* Image Section */}
-                {settings.footerNotesLeftImage ? (
-                    <div className="relative w-full h-full flex items-center justify-center">
-                        <img 
-                            src={settings.footerNotesLeftImage} 
-                            alt="Note" 
-                            className="max-h-full max-w-full object-contain"
-                        />
-                         {onUpdateSettings && (
-                            <button 
-                                onClick={handleRemoveNoteImage}
-                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-0.5 print:hidden hover:bg-red-600 opacity-50 hover:opacity-100"
-                                title="حذف الصورة"
-                            >
-                                <X size={10}/>
-                            </button>
-                        )}
-                    </div>
-                ) : (
-                    <textarea
-                        className={`w-full h-full text-right text-[10px] resize-none focus:outline-none bg-transparent p-1 leading-snug ${onUpdateSettings ? 'cursor-text' : 'cursor-default'}`}
-                        placeholder="اكتب ملاحظاتك هنا..."
+      {/* 3. FOOTER SECTION (Approx 18% height) */}
+      <div className="h-[18%] shrink-0 flex border-2 border-black">
+         {/* Right Section: General Messages */}
+         <div className="w-1/2 border-l-2 border-black p-2 flex flex-col">
+            <h4 className="font-bold text-[10px] mb-1 bg-gray-100 p-1 text-center border border-gray-300 rounded">رسائل وتوجيهات عامة</h4>
+            {onUpdateSettings ? (
+                <textarea 
+                  className="w-full flex-1 resize-none text-[9px] border-none outline-none bg-transparent"
+                  value={settings.footerNotesRight}
+                  onChange={(e) => handleFooterChange('footerNotesRight', e.target.value)}
+                  placeholder="اكتب التوجيهات هنا..."
+                />
+            ) : (
+                <p className="whitespace-pre-wrap text-[9px] leading-relaxed">{settings.footerNotesRight}</p>
+            )}
+         </div>
+
+         {/* Left Section: Notes & Image */}
+         <div className="w-1/2 p-2 flex flex-col relative group">
+             <h4 className="font-bold text-[10px] mb-1 bg-gray-100 p-1 text-center border border-gray-300 rounded">ملاحظات / نشاط أسبوعي</h4>
+             <div className="flex-1 flex flex-col relative overflow-hidden">
+                {/* Text Area */}
+                <div className="flex-1 z-10">
+                    {onUpdateSettings ? (
+                        <textarea 
+                        className="w-full h-full resize-none text-[9px] border-none outline-none bg-transparent/50 relative z-20"
                         value={settings.footerNotesLeft}
                         onChange={(e) => handleFooterChange('footerNotesLeft', e.target.value)}
-                        readOnly={!onUpdateSettings}
+                        placeholder="اكتب الملاحظات هنا..."
+                        />
+                    ) : (
+                        <p className="whitespace-pre-wrap text-[9px] leading-relaxed relative z-20">{settings.footerNotesLeft}</p>
+                    )}
+                </div>
+
+                {/* Background Image / Upload */}
+                {settings.footerNotesLeftImage && (
+                    <img 
+                        src={settings.footerNotesLeftImage} 
+                        className="absolute inset-0 w-full h-full object-contain opacity-20 z-0 pointer-events-none" 
+                        alt="Footer decoration"
                     />
                 )}
-            </div>
-        </div>
+                
+                {/* Upload Controls (Hidden in Print) */}
+                {onUpdateSettings && (
+                    <div className="absolute bottom-0 left-0 no-print flex gap-1 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <label className="cursor-pointer bg-blue-100 p-1 rounded hover:bg-blue-200" title="رفع صورة خلفية">
+                             <ImageIcon size={12} className="text-blue-600"/>
+                             <input type="file" accept="image/*" className="hidden" onChange={handleNoteImageUpload}/>
+                         </label>
+                         {settings.footerNotesLeftImage && (
+                             <button onClick={handleRemoveNoteImage} className="bg-red-100 p-1 rounded hover:bg-red-200" title="حذف الصورة">
+                                 <X size={12} className="text-red-600"/>
+                             </button>
+                         )}
+                    </div>
+                )}
+             </div>
+         </div>
       </div>
-      
-      {/* Branding */}
-      <div className="text-center text-[8px] text-gray-400 mt-0.5 print:mt-0">
-        Madrasti Planner System
-      </div>
+
     </div>
   );
 };
