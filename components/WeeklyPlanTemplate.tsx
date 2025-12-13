@@ -73,11 +73,12 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
     // STRICT A4 PORTRAIT CONTAINER
     // Width: 210mm, Height: 297mm. 
     // Flex-col to distribute height precisely.
-    <div className="bg-white text-black mx-auto overflow-hidden relative flex flex-col justify-between"
-         style={{ width: '210mm', height: '297mm', padding: '5mm' }}>
+    // Removed margins between sections to ensure 100% height fit.
+    <div className="bg-white text-black mx-auto overflow-hidden relative flex flex-col page-container"
+         style={{ width: '210mm', height: '297mm', padding: '5mm', boxSizing: 'border-box' }}>
       
-      {/* 1. HEADER SECTION (Approx 10% height) */}
-      <div className="flex justify-between items-start border-b-2 border-black pb-1 mb-1 h-[10%] shrink-0">
+      {/* 1. HEADER SECTION (Fixed Height approx 12%) */}
+      <div className="flex justify-between items-start border-b-2 border-black pb-1 shrink-0 h-[12%]">
         {/* Right Section */}
         <div className="text-right space-y-0.5 text-[10px] font-bold flex-1 pt-1">
           <p>{settings.ministryName}</p>
@@ -103,7 +104,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
               <p>الأسبوع: <span className="font-normal">{weekInfo.weekNumber}</span></p>
               <p>الصف: <span className="font-normal">{classGroup.name}</span></p>
               {studentName ? (
-                  <p className="bg-gray-100 px-1 rounded mt-0.5">الطالب: <span className="font-bold">{studentName}</span></p>
+                  <p className="bg-gray-100 px-1 rounded mt-0.5 border border-gray-300">الطالب: <span className="font-bold">{studentName}</span></p>
               ) : (
                   <p className="text-[9px] text-gray-500 mt-0.5">{weekInfo.semester}</p>
               )}
@@ -111,8 +112,8 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </div>
       </div>
 
-      {/* 2. MAIN TABLE SECTION (Approx 72% height) */}
-      <div className="border-2 border-black flex-1 mb-1 h-[72%] shrink-0 relative">
+      {/* 2. MAIN TABLE SECTION (Flex Grow to fill space) */}
+      <div className="border-2 border-black flex-1 shrink-0 relative my-1">
         <table className="w-full h-full border-collapse text-center table-fixed">
           <thead>
             <tr className="bg-gray-100 text-[9px] h-[3%]">
@@ -178,7 +179,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </table>
       </div>
 
-      {/* 3. FOOTER SECTION (Approx 18% height) */}
+      {/* 3. FOOTER SECTION (Fixed Height approx 18%) */}
       <div className="h-[18%] shrink-0 flex border-2 border-black">
          {/* Right Section: General Messages */}
          <div className="w-1/2 border-l-2 border-black p-2 flex flex-col">
@@ -213,11 +214,11 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                     )}
                 </div>
 
-                {/* Background Image / Upload */}
+                {/* Background Image / Upload - Removed opacity for clarity */}
                 {settings.footerNotesLeftImage && (
                     <img 
                         src={settings.footerNotesLeftImage} 
-                        className="absolute inset-0 w-full h-full object-contain opacity-20 z-0 pointer-events-none" 
+                        className="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none" 
                         alt="Footer decoration"
                     />
                 )}

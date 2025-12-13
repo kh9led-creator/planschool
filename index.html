@@ -24,20 +24,37 @@
           margin: 0; /* Remove default margins to use full A4 space */
         }
         
-        body {
-          background-color: white;
+        html, body {
           width: 210mm;
           height: 297mm;
+          margin: 0;
+          padding: 0;
+          background-color: white;
+          overflow: hidden; /* Prevent spillover to 2nd page */
+        }
+
+        body {
+          /* Slight zoom out to ensure borders don't trigger new page in some browsers */
+          zoom: 98%; 
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
 
         .no-print {
           display: none !important;
         }
-        
-        /* Ensure table header backgrounds print */
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+
+        /* Force single page container */
+        .page-container {
+          page-break-after: always;
+          height: 297mm;
+          width: 210mm;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .page-container:last-child {
+          page-break-after: avoid;
         }
       }
 

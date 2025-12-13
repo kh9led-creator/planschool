@@ -606,6 +606,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             onMarkAttendance={(record) => setAttendanceRecords(prev => [...prev.filter(r => !(r.studentId === record.studentId && r.date === record.date)), record])}
             messages={messages}
             onSendMessage={(msg) => setMessages(prev => [msg, ...prev])}
+            schoolSettings={schoolSettings}
          />
       </div>
     );

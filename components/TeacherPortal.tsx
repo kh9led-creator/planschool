@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGroup, AttendanceRecord, Message } from '../types';
+import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGroup, AttendanceRecord, Message, SchoolSettings } from '../types';
 import { DAYS_OF_WEEK } from '../services/data';
-import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool } from 'lucide-react';
+import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer } from 'lucide-react';
+import AttendanceReportTemplate from './AttendanceReportTemplate';
 
 interface TeacherPortalProps {
   teacher: Teacher;
@@ -16,6 +17,7 @@ interface TeacherPortalProps {
   onMarkAttendance: (record: AttendanceRecord) => void;
   messages: Message[];
   onSendMessage: (msg: Message) => void;
+  schoolSettings: SchoolSettings;
 }
 
 const TeacherPortal: React.FC<TeacherPortalProps> = ({
@@ -30,7 +32,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
   attendanceRecords,
   onMarkAttendance,
   messages,
-  onSendMessage
+  onSendMessage,
+  schoolSettings
 }) => {
   const [activeDay, setActiveDay] = useState<number | null>(0);
   const [showAttendanceModal, setShowAttendanceModal] = useState<boolean>(false);
@@ -38,6 +41,9 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [selectedClassForAttendance, setSelectedClassForAttendance] = useState<{classId: string, className: string} | null>(null);
   const [newMessageText, setNewMessageText] = useState('');
   const [msgTab, setMsgTab] = useState<'inbox' | 'compose'>('inbox');
+  
+  // State for Report Printing
+  const [showReportPreview, setShowReportPreview] = useState(false);
 
   // Filter schedule for this teacher
   const teacherSchedule = schedule.filter(s => s.teacherId === teacher.id);
@@ -97,6 +103,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
     const cls = classes.find(c => c.id === classId);
     setSelectedClassForAttendance({ classId, className: cls?.name || 'فصل غير معروف' });
     setShowAttendanceModal(true);
+    setShowReportPreview(false); // Reset report view
   };
 
   const toggleAttendance = (studentId: string) => {
@@ -112,10 +119,22 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
      });
   };
 
+  const getAbsentStudents = () => {
+      if (!selectedClassForAttendance) return [];
+      return students.filter(s => 
+          s.classId === selectedClassForAttendance.classId && 
+          attendanceRecords.some(r => r.studentId === s.id && r.date === todayDate && r.status === 'absent')
+      );
+  };
+
+  const handlePrintReport = () => {
+      window.print();
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto pb-20 font-sans">
       {/* Header Card */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl shadow-xl p-8 mb-8 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl shadow-xl p-8 mb-8 text-white relative overflow-hidden no-print">
         <div className="relative z-10 flex justify-between items-start">
             <div>
                 <h2 className="text-3xl font-extrabold mb-1">بوابة المعلم</h2>
@@ -141,7 +160,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
         <BookOpen className="absolute -bottom-6 -left-6 text-white/10 w-48 h-48 rotate-12 pointer-events-none" />
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 no-print">
         {DAYS_OF_WEEK.map((day, dIndex) => {
           const daySlots = teacherSchedule.filter(s => s.dayIndex === dIndex).sort((a,b) => a.period - b.period);
           if (daySlots.length === 0) return null;
@@ -259,73 +278,115 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
       {/* Attendance Modal */}
       {showAttendanceModal && selectedClassForAttendance && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slideDown">
-                <div className="bg-slate-800 text-white p-5 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className={`bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slideDown ${showReportPreview ? '' : 'max-w-lg'}`}>
+                
+                {/* Modal Header */}
+                <div className="bg-slate-800 text-white p-5 flex justify-between items-center shrink-0">
                     <div>
                         <h3 className="font-bold text-lg flex items-center gap-2">
                             <UserCheck size={20} className="text-emerald-400"/>
-                            رصد الغياب
+                            {showReportPreview ? 'معاينة تقرير الغياب' : 'رصد الغياب'}
                         </h3>
                         <p className="text-xs text-slate-400 mt-1">{selectedClassForAttendance.className} | {new Date().toLocaleDateString('ar-SA')}</p>
                     </div>
-                    <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
-                        <X size={20}/>
-                    </button>
-                </div>
-                
-                <div className="p-4 overflow-y-auto flex-1 bg-slate-50">
-                    <div className="space-y-3">
-                        {students.filter(s => s.classId === selectedClassForAttendance.classId).length === 0 ? (
-                            <div className="text-center py-12 flex flex-col items-center">
-                                <div className="bg-white p-4 rounded-full shadow-sm mb-3"><UserCheck size={32} className="text-slate-300"/></div>
-                                <p className="text-slate-500 font-bold">لا يوجد طلاب مسجلين في هذا الفصل</p>
-                            </div>
-                        ) : (
-                            students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
-                                const record = attendanceRecords.find(r => r.studentId === student.id && r.date === todayDate);
-                                const isAbsent = record?.status === 'absent';
-
-                                return (
-                                    <div 
-                                        key={student.id}
-                                        onClick={() => toggleAttendance(student.id)}
-                                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all shadow-sm group ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200 hover:border-emerald-300'}`}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm transition-colors ${isAbsent ? 'bg-rose-500' : 'bg-slate-200 text-slate-500 group-hover:bg-emerald-500 group-hover:text-white'}`}>
-                                                {student.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className={`font-bold transition-colors ${isAbsent ? 'text-rose-800' : 'text-slate-700'}`}>{student.name}</p>
-                                                <p className="text-xs text-slate-400">{student.parentPhone}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {isAbsent ? (
-                                                <span className="flex items-center gap-1 text-rose-600 bg-rose-100 px-3 py-1 rounded-lg font-bold text-xs">
-                                                    <XCircle size={14}/> غائب
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <CheckCircle size={14}/> حاضر
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })
+                    <div className="flex gap-2">
+                        {showReportPreview && (
+                            <button onClick={handlePrintReport} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
+                                <Printer size={14}/> طباعة التقرير
+                            </button>
                         )}
+                        <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
+                            <X size={20}/>
+                        </button>
                     </div>
                 </div>
+                
+                {/* Modal Content */}
+                <div className="flex-1 overflow-y-auto bg-slate-50">
+                    {showReportPreview ? (
+                        <div className="p-8 flex justify-center">
+                            <AttendanceReportTemplate 
+                                schoolSettings={schoolSettings}
+                                classGroup={{name: selectedClassForAttendance.className, id: selectedClassForAttendance.classId}}
+                                teacherName={teacher.name}
+                                date={todayDate}
+                                absentStudents={getAbsentStudents()}
+                            />
+                        </div>
+                    ) : (
+                        <div className="p-4">
+                            <div className="space-y-3">
+                                {students.filter(s => s.classId === selectedClassForAttendance.classId).length === 0 ? (
+                                    <div className="text-center py-12 flex flex-col items-center">
+                                        <div className="bg-white p-4 rounded-full shadow-sm mb-3"><UserCheck size={32} className="text-slate-300"/></div>
+                                        <p className="text-slate-500 font-bold">لا يوجد طلاب مسجلين في هذا الفصل</p>
+                                    </div>
+                                ) : (
+                                    students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
+                                        const record = attendanceRecords.find(r => r.studentId === student.id && r.date === todayDate);
+                                        const isAbsent = record?.status === 'absent';
 
-                <div className="p-4 border-t bg-white flex justify-end">
-                    <button 
-                        onClick={() => setShowAttendanceModal(false)}
-                        className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg"
-                    >
-                        حفظ وإغلاق
-                    </button>
+                                        return (
+                                            <div 
+                                                key={student.id}
+                                                onClick={() => toggleAttendance(student.id)}
+                                                className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all shadow-sm group ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200 hover:border-emerald-300'}`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm transition-colors ${isAbsent ? 'bg-rose-500' : 'bg-slate-200 text-slate-500 group-hover:bg-emerald-500 group-hover:text-white'}`}>
+                                                        {student.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`font-bold transition-colors ${isAbsent ? 'text-rose-800' : 'text-slate-700'}`}>{student.name}</p>
+                                                        <p className="text-xs text-slate-400">{student.parentPhone}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {isAbsent ? (
+                                                        <span className="flex items-center gap-1 text-rose-600 bg-rose-100 px-3 py-1 rounded-lg font-bold text-xs">
+                                                            <XCircle size={14}/> غائب
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <CheckCircle size={14}/> حاضر
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 border-t bg-white flex justify-between items-center">
+                    {!showReportPreview ? (
+                        <>
+                           <button 
+                                onClick={() => setShowReportPreview(true)}
+                                className="text-slate-500 hover:text-indigo-600 font-bold text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+                           >
+                               <Printer size={18}/> معاينة كشف الغياب
+                           </button>
+                           <button 
+                                onClick={() => setShowAttendanceModal(false)}
+                                className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg"
+                           >
+                               حفظ وإغلاق
+                           </button>
+                        </>
+                    ) : (
+                        <button 
+                            onClick={() => setShowReportPreview(false)}
+                            className="text-slate-500 hover:text-slate-700 font-bold text-sm px-4 py-2"
+                        >
+                            عودة للقائمة
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -1255,7 +1255,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {/* Print container */}
                     <div className="mx-auto rounded-none print:shadow-none">
                         {printMode === 'master' ? (
-                            <div className="bg-white shadow-2xl print:shadow-none">
+                            <div className="bg-white shadow-2xl print:shadow-none page-container">
                                 <WeeklyPlanTemplate 
                                     classGroup={activeClass}
                                     weekInfo={weekInfo}
@@ -1274,7 +1274,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 ) : (
                                     classStudents.map((student, index) => (
-                                        <div key={student.id} style={{ pageBreakAfter: 'always' }} className="mb-8 print:mb-0 bg-white shadow-2xl print:shadow-none">
+                                        <div key={student.id} className="mb-8 print:mb-0 bg-white shadow-2xl print:shadow-none page-container">
                                             <WeeklyPlanTemplate 
                                                 classGroup={activeClass}
                                                 weekInfo={weekInfo}
