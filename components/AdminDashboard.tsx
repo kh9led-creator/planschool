@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 
 interface AdminDashboardProps {
@@ -74,6 +74,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   // Added 'students' as a separate tab
   const [activeTab, setActiveTab] = useState<'plan' | 'attendance' | 'setup' | 'archive' | 'classes' | 'messages' | 'students'>('students');
+  
+  // Print Mode State
+  const [printMode, setPrintMode] = useState<'master' | 'students'>('master');
   
   // Safe Class Selection
   const hasClasses = classes && classes.length > 0;
@@ -1085,14 +1088,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                      <WeeklyPlanTemplate 
                                         classGroup={{id: 'archived', name: viewingArchive.className, grade: ''}} // Mock class for display
                                         weekInfo={viewingArchive.weekInfo}
-                                        schedule={[]} // Archive doesn't store schedule, just entries. Template will render entries correctly based on day/period in PlanEntry
-                                        // Trick: We pass a mock schedule derived from entries to force cells to render if needed, 
-                                        // OR relies on the fact that the Template iterates 1..7.
-                                        // The current Template implementation iterates 1..7 regardless of schedule.
-                                        // However, it looks up subject from schedule. Archive needs to store Subject info or we might lose color context if subject deleted.
-                                        // For simplicity, we use current subjects. If subject deleted, name shows as '-'.
-                                        // Improvement: ArchivedPlan should ideally store snapshot of subjects. 
-                                        // Current impl: We'll do best effort with current subjects.
+                                        schedule={[]} 
                                         planEntries={viewingArchive.entries}
                                         schoolSettings={schoolSettings}
                                         subjects={subjects}
@@ -1232,23 +1228,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                  <p className="text-xs text-slate-500">جاهزة للطباعة (A4)</p>
                              </div>
                         </div>
+                        
+                        {/* Print Mode Toggle */}
+                        <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                             <button 
+                                onClick={() => setPrintMode('master')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${printMode === 'master' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                             >
+                                 <Copy size={14}/> نسخة عامة
+                             </button>
+                             <button 
+                                onClick={() => setPrintMode('students')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${printMode === 'students' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                             >
+                                 <User size={14}/> نسخ للطلاب ({classStudents.length})
+                             </button>
+                        </div>
+
                         <div className="flex flex-wrap gap-2 justify-center">
                             <button onClick={onClearPlans} className="btn-secondary text-rose-600 bg-rose-50 hover:bg-rose-100"><Eraser size={18} /><span>تفريغ</span></button>
                             <button onClick={handleArchiveClick} className="btn-secondary text-amber-600 bg-amber-50 hover:bg-amber-100"><Archive size={18} /><span>أرشفة</span></button>
                             <button onClick={handlePrint} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl hover:bg-slate-900 flex items-center gap-2 font-bold shadow-lg shadow-slate-300 transition-all"><Printer size={18} /><span>طباعة</span></button>
                         </div>
                     </div>
+                    
                     {/* Print container */}
-                    <div className="bg-white shadow-2xl print:shadow-none mx-auto rounded-none">
-                        <WeeklyPlanTemplate 
-                            classGroup={activeClass}
-                            weekInfo={weekInfo}
-                            schedule={schedule.filter(s => s.classId === selectedClassId)}
-                            planEntries={planEntries.filter(e => e.classId === selectedClassId)}
-                            schoolSettings={schoolSettings}
-                            subjects={subjects}
-                            onUpdateSettings={setSchoolSettings}
-                        />
+                    <div className="mx-auto rounded-none print:shadow-none">
+                        {printMode === 'master' ? (
+                            <div className="bg-white shadow-2xl print:shadow-none">
+                                <WeeklyPlanTemplate 
+                                    classGroup={activeClass}
+                                    weekInfo={weekInfo}
+                                    schedule={schedule.filter(s => s.classId === selectedClassId)}
+                                    planEntries={planEntries.filter(e => e.classId === selectedClassId)}
+                                    schoolSettings={schoolSettings}
+                                    subjects={subjects}
+                                    onUpdateSettings={setSchoolSettings}
+                                />
+                            </div>
+                        ) : (
+                            <div>
+                                {classStudents.length === 0 ? (
+                                    <div className="bg-orange-50 p-6 rounded-xl border border-orange-100 text-center text-orange-600 font-bold">
+                                        لا يوجد طلاب مسجلين في هذا الفصل لطباعة نسخ لهم.
+                                    </div>
+                                ) : (
+                                    classStudents.map((student, index) => (
+                                        <div key={student.id} style={{ pageBreakAfter: 'always' }} className="mb-8 print:mb-0 bg-white shadow-2xl print:shadow-none">
+                                            <WeeklyPlanTemplate 
+                                                classGroup={activeClass}
+                                                weekInfo={weekInfo}
+                                                schedule={schedule.filter(s => s.classId === selectedClassId)}
+                                                planEntries={planEntries.filter(e => e.classId === selectedClassId)}
+                                                schoolSettings={schoolSettings}
+                                                subjects={subjects}
+                                                onUpdateSettings={setSchoolSettings}
+                                                studentName={student.name}
+                                            />
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
                  </>
              ) : (

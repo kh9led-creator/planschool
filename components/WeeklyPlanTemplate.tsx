@@ -11,6 +11,7 @@ interface WeeklyPlanTemplateProps {
   schoolSettings?: SchoolSettings;
   subjects: Subject[];
   onUpdateSettings?: (settings: SchoolSettings) => void;
+  studentName?: string; // Added prop for individual student plans
 }
 
 const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
@@ -20,7 +21,8 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
   planEntries,
   schoolSettings,
   subjects,
-  onUpdateSettings
+  onUpdateSettings,
+  studentName
 }) => {
   const getSubject = (id: string) => subjects.find((s) => s.id === id);
   
@@ -100,7 +102,11 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
               <p>إلى: <span className="font-normal">{weekInfo.endDate}</span></p>
               <p>الأسبوع: <span className="font-normal">{weekInfo.weekNumber}</span></p>
               <p>الصف: <span className="font-normal">{classGroup.name}</span></p>
-              <p className="text-[9px] text-gray-500 mt-0.5">{weekInfo.semester}</p>
+              {studentName ? (
+                  <p className="bg-gray-100 px-1 rounded mt-0.5">الطالب: <span className="font-bold">{studentName}</span></p>
+              ) : (
+                  <p className="text-[9px] text-gray-500 mt-0.5">{weekInfo.semester}</p>
+              )}
            </div>
         </div>
       </div>
