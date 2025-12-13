@@ -50,6 +50,9 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Explicitly declare props to avoid TS error
+  readonly props: Readonly<ErrorBoundaryProps>;
+
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -57,6 +60,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.props = props;
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -695,7 +699,7 @@ const App: React.FC = () => {
       if (schoolRegistry.length > 0) {
           setCurrentSchoolId(schoolRegistry[0].id);
       } else {
-          const defaultSchool = { id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true }];
+          const defaultSchool = { id: 'default', name: 'المدرسة الافتراضية', createdAt: new Date().toISOString(), isActive: true };
           setSchoolRegistry([defaultSchool]);
           setCurrentSchoolId('default');
       }

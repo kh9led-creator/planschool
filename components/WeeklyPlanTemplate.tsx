@@ -131,11 +131,13 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                     {/* Day Column: Merged vertically */}
                     {isFirstPeriod && (
                       <td 
-                        className="border border-black bg-gray-50 font-bold vertical-rl writing-vertical-rl p-0"
+                        className="border border-black bg-gray-50 font-bold p-0 text-center align-middle"
                         rowSpan={7}
                       >
-                        <div className="flex items-center justify-center h-full w-full rotate-90 whitespace-nowrap">
-                            {day}
+                        <div className="flex items-center justify-center h-full w-full">
+                           <div className="writing-vertical-rl whitespace-nowrap">
+                               {day}
+                           </div>
                         </div>
                       </td>
                     )}
