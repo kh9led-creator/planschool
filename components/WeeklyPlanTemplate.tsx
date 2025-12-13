@@ -103,7 +103,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
       </div>
 
       {/* Main Table - Optimized for Portrait Width (68% Height) */}
-      <div className="border-2 border-black flex-1 mt-2">
+      <div className="border-2 border-black flex-1 mt-2 h-[68%]">
         <table className="w-full h-full border-collapse text-center table-fixed">
           <thead>
             <tr className="bg-gray-100 text-[10px] print:text-[9px] h-[4%]">

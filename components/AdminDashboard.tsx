@@ -123,7 +123,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [messageRecipient, setMessageRecipient] = useState('all');
   const [messageContent, setMessageContent] = useState('');
 
-  // --- Noor Import Logic (Updated for specific columns and robustness) ---
+  // --- Noor Import Logic (Updated for automatic Class creation) ---
   const handleNoorImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -138,14 +138,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
-        // Handle standard CSV or CSV created by Excel (might have semicolon or comma)
         const lines = text.split(/\r\n|\n/);
         
         const newStudents: Student[] = [];
         const newClasses: ClassGroup[] = [];
         
         // Map to track classes (Name -> ID) to prevent duplicates in this batch
-        // We start with existing classes to avoid re-creating them
         const processedClasses = new Map<string, string>(); 
         classes.forEach(c => processedClasses.set(c.name, c.id));
 
@@ -153,18 +151,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         let classesAddedCount = 0;
 
         // Smart Header Detection
-        // Look for the row that contains "اسم الطالب" (Student Name) to determine columns
         let headerIndex = -1;
         let nameColIdx = -1;
         let phoneColIdx = -1;
-        let classColIdx = -1; // Section/Class column
-        let gradeColIdx = -1; // Grade level column (optional, but Noor has it)
+        let classColIdx = -1; // "الفصل"
+        let gradeColIdx = -1; // "الصف"
         
         // Pre-scan to find header
-        for (let i = 0; i < Math.min(lines.length, 25); i++) {
+        for (let i = 0; i < Math.min(lines.length, 30); i++) {
             const rowRaw = lines[i];
-            // Detect delimiter
+            // Normalize quotes and delimiters
             const delimiter = rowRaw.includes(';') ? ';' : ',';
+            // Simple CSV split (handles basic cases)
             const row = rowRaw.split(delimiter).map(c => c.replace(/["\r]/g, '').trim());
             
             // Check for keywords
@@ -172,18 +170,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (nameIdx !== -1) {
                 headerIndex = i;
                 nameColIdx = nameIdx;
-                // Try to find other columns relative to this row
-                phoneColIdx = row.findIndex(c => c.includes('جوال') || c.includes('هاتف') || c.includes('Mobile') || c.includes('Phone'));
-                classColIdx = row.findIndex(c => c.includes('فصل') || c.includes('شعبة') || c.includes('Section') || c.includes('Class'));
+                phoneColIdx = row.findIndex(c => c.includes('جوال') || c.includes('هاتف') || c.includes('Mobile'));
+                classColIdx = row.findIndex(c => c.includes('فصل') || c.includes('شعبة') || c.includes('Section'));
                 gradeColIdx = row.findIndex(c => c.includes('صف') || c.includes('Grade'));
                 break;
             }
         }
 
-        // Fallback to fixed indices if header detection fails (Standard Noor CSV structure often used)
         if (headerIndex === -1) {
-             // Heuristic: Skip first few rows if they look like metadata ("School Info")
-             // We will assume a specific structure if header not found:
+            // Fallback for standard files if header is missing/renamed
+            // Assumed: [ID, Phone, Grade, Class, Name, ...]
              headerIndex = 0; 
              nameColIdx = 4; // Col E
              phoneColIdx = 1; // Col B
@@ -198,54 +194,61 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const delimiter = lines[i].includes(';') ? ';' : ',';
           const row = lines[i].split(delimiter).map(cell => cell.replace(/["\r]/g, '').trim());
           
-          // Safety check: ensure row has enough columns based on what we expect
           if (row.length <= nameColIdx) continue;
 
           const studentName = row[nameColIdx];
           
-          // Basic validation: Name must contain Arabic letters and be longer than 3 chars
+          // Validation
           if (!studentName || studentName.length < 3 || !/[\u0600-\u06FF]/.test(studentName)) continue;
-          if (studentName === 'اسم الطالب') continue; // Skip if repeated header
+          if (studentName === 'اسم الطالب') continue; 
 
           const parentPhone = (phoneColIdx !== -1 && row[phoneColIdx]) ? row[phoneColIdx] : '';
 
-          // Class Construction Logic
-          // Combine Grade and Class if both exist (e.g. "الصف الأول" + "1")
-          // Or just take Class/Section if Grade missing
-          let rawClassStr = '';
-          
+          // --- Automatic Class Detection ---
+          let finalClassName = "عام";
+          let gradeName = "عام";
+
+          // Extract Grade (e.g., "الصف الأول الابتدائي")
           if (gradeColIdx !== -1 && row[gradeColIdx]) {
-              rawClassStr += row[gradeColIdx] + ' ';
+              gradeName = row[gradeColIdx];
           }
+
+          // Extract Class Number (e.g., "1", "2", "أ")
+          let classNum = "";
           if (classColIdx !== -1 && row[classColIdx]) {
-              rawClassStr += row[classColIdx];
+              classNum = row[classColIdx];
           }
 
-          // CLEANUP: Take only the first two words to keep it clean (e.g., "أول ابتدائي")
-          // This creates the standardized class name
-          const cleanClassName = rawClassStr.trim().split(/\s+/).slice(0, 2).join(' ');
+          // Construct Full Class Name (e.g., "الصف الأول - 1")
+          // Logic: If we have both, combine them. If only class, use class.
+          if (gradeName !== "عام" && classNum) {
+              // Simplify grade name? e.g. take first 2 words
+              const shortGrade = gradeName.split(' ').slice(0, 2).join(' ');
+              finalClassName = `${shortGrade} - ${classNum}`;
+          } else if (classNum) {
+              finalClassName = classNum;
+          } else if (gradeName !== "عام") {
+              finalClassName = gradeName;
+          }
 
-          // Skip if class name is empty
-          if (cleanClassName.length < 2) continue;
-
-          // Check if class exists or create it
-          let classId = processedClasses.get(cleanClassName);
+          // Check if Class exists
+          let classId = processedClasses.get(finalClassName);
 
           if (!classId) {
-             // Create new class since it doesn't exist in map
+             // Create New Class
              classId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
              const newClassGroup: ClassGroup = {
                id: classId,
-               name: cleanClassName,
-               grade: (gradeColIdx !== -1 && row[gradeColIdx]) ? row[gradeColIdx] : 'عام'
+               name: finalClassName,
+               grade: gradeName
              };
              
              newClasses.push(newClassGroup);
-             processedClasses.set(cleanClassName, classId);
+             processedClasses.set(finalClassName, classId);
              classesAddedCount++;
           }
 
-          // Check for duplicate students (by name)
+          // Check Duplicate Student
           const isDuplicate = students.some(s => s.name === studentName) || newStudents.some(s => s.name === studentName);
           
           if (!isDuplicate) {
@@ -260,7 +263,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
         }
 
-        // Apply updates
+        // Apply State Updates
         if (newClasses.length > 0) {
             onSetClasses([...classes, ...newClasses]);
         }
@@ -270,24 +273,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
 
         if (studentsAddedCount === 0 && classesAddedCount === 0) {
-             alert('لم يتم العثور على بيانات صالحة. تأكد من أن الملف بصيغة CSV ويحتوي على عمود "اسم الطالب".');
+             alert('لم يتم العثور على بيانات. تأكد من صحة الملف.');
         } else {
-             alert(`تمت العملية بنجاح:\n- تم استيراد ${studentsAddedCount} طالب.\n- تم تكوين ${classesAddedCount} فصول جديدة.`);
+             alert(`تم الاستيراد بنجاح:\n- ${studentsAddedCount} طالب\n- ${classesAddedCount} فصل جديد`);
         }
         
       } catch (error: any) {
-        alert('حدث خطأ أثناء قراءة الملف: ' + error.message);
-        console.error(error);
+        alert('حدث خطأ: ' + error.message);
       } finally {
         setImportLoading(false);
         if(fileInputRef.current) fileInputRef.current.value = '';
       }
     };
-    // Use ISO-8859-6 or windows-1256 if needed for Arabic Excel CSVs, but usually modern exports work with default (UTF-8)
     reader.readAsText(file);
   };
 
-  // ... (Other handlers remain the same) ...
+  // ... (Rest of handlers remain unchanged)
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -592,7 +593,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         >
                             <UploadCloud size={32}/>
                             <span>{importLoading ? 'جاري الاستيراد...' : 'استيراد الطلاب من ملف Excel/CSV'}</span>
-                            <span className="text-[10px] font-normal opacity-80">يدعم ملفات نظام نور (سيتم إنشاء الفصول تلقائياً)</span>
+                            <span className="text-[10px] font-normal opacity-80">سيتم إنشاء الفصول تلقائياً بناءً على بيانات الملف</span>
                         </button>
                         
                         <button 
