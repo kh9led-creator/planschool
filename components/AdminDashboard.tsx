@@ -53,6 +53,7 @@ interface AdminDashboardProps {
   schoolMetadata?: SchoolMetadata;
   onRenewSubscription?: (plan: string, code: string) => boolean;
   pricing?: PricingConfig;
+  schoolId: string; // New Prop for Data Ownership
 }
 
 const COLORS = [
@@ -95,7 +96,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSendMessage,
   schoolMetadata,
   onRenewSubscription,
-  pricing = { quarterly: 100, annual: 300, currency: 'SAR' } // Default Fallback
+  pricing = { quarterly: 100, annual: 300, currency: 'SAR' },
+  schoolId // Destructure schoolId
 }) => {
   // Check Frozen Status
   const isExpired = schoolMetadata ? new Date(schoolMetadata.subscriptionEnd) < new Date() : false;
@@ -277,14 +279,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           let classId = processedClasses.get(finalClassName);
           if (!classId) {
              classId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-             const newClassGroup: ClassGroup = { id: classId, name: finalClassName, grade: gradeName };
+             const newClassGroup: ClassGroup = { id: classId, schoolId: schoolId, name: finalClassName, grade: gradeName };
              newClasses.push(newClassGroup);
              processedClasses.set(finalClassName, classId);
              classesAddedCount++;
           }
           const isDuplicate = students.some(s => s.name === studentName) || newStudents.some(s => s.name === studentName);
           if (!isDuplicate) {
-              newStudents.push({ id: `s_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: studentName, parentPhone: parentPhone, classId: classId, absenceCount: 0 });
+              newStudents.push({ 
+                  id: `s_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
+                  schoolId: schoolId,
+                  name: studentName, 
+                  parentPhone: parentPhone, 
+                  classId: classId, 
+                  absenceCount: 0 
+              });
               studentsAddedCount++;
           }
         }
@@ -320,16 +329,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       reader.readAsDataURL(file);
     }
   };
-  const handleAddSubject = () => { if(!subjectForm.name) return; onSetSubjects([...subjects, { id: `sub_${Date.now()}`, name: subjectForm.name, color: subjectForm.color }]); setSubjectForm({ name: '', color: 'bg-slate-50 border-slate-200 text-slate-800' }); };
+  const handleAddSubject = () => { if(!subjectForm.name) return; onSetSubjects([...subjects, { id: `sub_${Date.now()}`, schoolId: schoolId, name: subjectForm.name, color: subjectForm.color }]); setSubjectForm({ name: '', color: 'bg-slate-50 border-slate-200 text-slate-800' }); };
   const handleDeleteSubject = (id: string) => { if(window.confirm('هل أنت متأكد من حذف هذه المادة؟')) onSetSubjects(subjects.filter(s => s.id !== id)); };
-  const handleAddClass = () => { if(!newClassName) return; const newClass = { id: `c_${Date.now()}`, name: newClassName, grade: newClassGrade || 'عام' }; onAddClass(newClass); setNewClassName(''); setNewClassGrade(''); setSelectedClassId(newClass.id); };
+  const handleAddClass = () => { if(!newClassName) return; const newClass = { id: `c_${Date.now()}`, schoolId: schoolId, name: newClassName, grade: newClassGrade || 'عام' }; onAddClass(newClass); setNewClassName(''); setNewClassGrade(''); setSelectedClassId(newClass.id); };
   const openScheduleEdit = (dayIndex: number, period: number) => { if (!selectedClassId) return; const existing = schedule.find(s => s.classId === selectedClassId && s.dayIndex === dayIndex && s.period === period); setScheduleForm({ subjectId: existing?.subjectId || '', teacherId: existing?.teacherId || '' }); setEditingSlot({ dayIndex, period }); };
   const saveScheduleSlot = () => { if(editingSlot && scheduleForm.subjectId && scheduleForm.teacherId && selectedClassId) { onUpdateSchedule({ classId: selectedClassId, dayIndex: editingSlot.dayIndex, period: editingSlot.period, subjectId: scheduleForm.subjectId, teacherId: scheduleForm.teacherId }); setEditingSlot(null); } };
-  const handleAddStudent = () => { if (!studentForm.name) return; onSetStudents([...students, { id: Date.now().toString(), name: studentForm.name, parentPhone: studentForm.parentPhone, classId: studentForm.classId || selectedClassId, absenceCount: 0 }]); setStudentForm({ name: '', parentPhone: '', classId: '' }); setIsAddingStudent(false); };
+  const handleAddStudent = () => { if (!studentForm.name) return; onSetStudents([...students, { id: Date.now().toString(), schoolId: schoolId, name: studentForm.name, parentPhone: studentForm.parentPhone, classId: studentForm.classId || selectedClassId, absenceCount: 0 }]); setStudentForm({ name: '', parentPhone: '', classId: '' }); setIsAddingStudent(false); };
   const handleDeleteStudent = (id: string) => { if (window.confirm('هل أنت متأكد من حذف الطالب؟')) onSetStudents(students.filter(s => s.id !== id)); };
   const startEditStudent = (student: Student) => { setEditingStudentId(student.id); setStudentForm({ name: student.name, parentPhone: student.parentPhone, classId: student.classId }); };
   const saveEditStudent = () => { onSetStudents(students.map(s => s.id === editingStudentId ? { ...s, name: studentForm.name, parentPhone: studentForm.parentPhone, classId: studentForm.classId } : s)); setEditingStudentId(null); setStudentForm({ name: '', parentPhone: '', classId: '' }); };
-  const handleCreateTeacher = () => { if (!teacherForm.name || !teacherForm.password) { alert("الرجاء إدخال الاسم وكلمة المرور"); return; } onAddTeacher({ id: `t_${Date.now()}`, name: teacherForm.name, username: teacherForm.username || teacherForm.name.replace(/\s/g, '').toLowerCase(), password: teacherForm.password, assignedClasses: [] }); setTeacherForm({ name: '', username: '', password: '' }); alert("تم إضافة المعلم بنجاح"); };
+  const handleCreateTeacher = () => { if (!teacherForm.name || !teacherForm.password) { alert("الرجاء إدخال الاسم وكلمة المرور"); return; } onAddTeacher({ id: `t_${Date.now()}`, schoolId: schoolId, name: teacherForm.name, username: teacherForm.username || teacherForm.name.replace(/\s/g, '').toLowerCase(), password: teacherForm.password, assignedClasses: [] }); setTeacherForm({ name: '', username: '', password: '' }); alert("تم إضافة المعلم بنجاح"); };
   const handleDeleteTeacher = (id: string) => { if(window.confirm('هل أنت متأكد؟')) onDeleteTeacher(id); };
   const startEditTeacher = (teacher: Teacher) => { setEditingTeacherId(teacher.id); setTeacherEditForm({ name: teacher.name, username: teacher.username, password: teacher.password || '' }); };
   const saveEditTeacher = () => { const teacher = teachers.find(t => t.id === editingTeacherId); if(teacher) onUpdateTeacher({ ...teacher, name: teacherEditForm.name, username: teacherEditForm.username, password: teacherEditForm.password }); setEditingTeacherId(null); };

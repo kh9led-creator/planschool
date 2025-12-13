@@ -1,20 +1,23 @@
 
 export interface Subject {
   id: string;
+  schoolId?: string;
   name: string;
   color: string;
 }
 
 export interface Teacher {
   id: string;
+  schoolId?: string;
   name: string;
-  username: string; // Will be used as login ID
-  password?: string; // New field for simple auth
-  assignedClasses: string[]; // Class IDs
+  username: string;
+  password?: string;
+  assignedClasses: string[];
 }
 
 export interface Student {
   id: string;
+  schoolId?: string;
   name: string;
   classId: string;
   parentPhone: string;
@@ -23,21 +26,24 @@ export interface Student {
 
 export interface ClassGroup {
   id: string;
-  name: string; // e.g., "ثالث - أ"
+  schoolId?: string;
+  name: string;
   grade: string;
 }
 
 export interface ScheduleSlot {
   id?: string;
-  classId: string; // Link slot to a specific class
-  dayIndex: number; // 0 = Sunday, 1 = Monday, etc.
-  period: number; // 1 to 7
+  schoolId?: string; // Added ownership
+  classId: string;
+  dayIndex: number;
+  period: number;
   subjectId: string;
   teacherId: string;
 }
 
 export interface PlanEntry {
   id: string;
+  schoolId?: string; // Added ownership
   classId: string;
   dayIndex: number;
   period: number;
@@ -59,22 +65,23 @@ export interface SchoolSettings {
   directorateName: string;
   schoolName: string;
   logoUrl: string;
-  footerNotesLeft: string; // The "Notes" section (Text)
-  footerNotesLeftImage?: string; // The "Notes" section (Image)
-  footerNotesRight: string; // The "Other Notes/General Messages" section
+  footerNotesLeft: string;
+  footerNotesLeftImage?: string;
+  footerNotesRight: string;
 }
 
-// Attendance record for a specific date
 export interface AttendanceRecord {
-  date: string; // ISO Date string YYYY-MM-DD
+  date: string;
+  schoolId?: string; // Added ownership
   studentId: string;
   status: 'present' | 'absent' | 'excused';
-  reportedBy?: string; // Teacher Name
+  reportedBy?: string;
   timestamp?: string;
 }
 
 export interface ArchivedPlan {
   id: string;
+  schoolId?: string; // Added ownership
   archivedDate: string;
   weekInfo: WeekInfo;
   entries: PlanEntry[];
@@ -84,9 +91,10 @@ export interface ArchivedPlan {
 
 export interface Message {
   id: string;
-  senderId: string; // 'admin' or teacherId
+  schoolId?: string; // Added ownership
+  senderId: string;
   senderName: string;
-  receiverId: string; // 'admin', 'all', or teacherId
+  receiverId: string;
   content: string;
   timestamp: string;
   isRead: boolean;

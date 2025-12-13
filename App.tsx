@@ -642,7 +642,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             onAddTeacher={(t) => setTeachers(prev => [...prev, t])}
             onUpdateTeacher={(t) => setTeachers(prev => prev.map(old => old.id === t.id ? t : old))}
             onDeleteTeacher={(id) => setTeachers(prev => prev.filter(t => t.id !== id))}
-            onArchivePlan={(name, week, entries) => setArchivedPlans(prev => [{id: Date.now().toString(), archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: week, entries, name, className: classes[0]?.name || 'عام'}, ...prev])}
+            onArchivePlan={(name, week, entries) => setArchivedPlans(prev => [{id: Date.now().toString(), schoolId: schoolId, archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: week, entries, name, className: classes[0]?.name || 'عام'}, ...prev])}
             onClearPlans={() => { if(window.confirm('تأكيد تفريغ الخطط؟')) setPlanEntries([]) }}
             archivedPlans={archivedPlans}
             onDeleteArchive={(id) => setArchivedPlans(prev => prev.filter(a => a.id !== id))}
@@ -656,6 +656,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             schoolMetadata={schoolMetadata}
             onRenewSubscription={(plan, code) => onUpgradeSubscription(schoolMetadata.id, plan, code)}
             pricing={pricing}
+            schoolId={schoolId} // Added Prop for Data Ownership
          />
       </div>
     );
@@ -1052,6 +1053,7 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
         <SchoolSystem 
+            key={effectiveSchool.id} 
             schoolId={effectiveSchool.id}
             schoolMetadata={effectiveSchool}
             onSwitchSchool={setActiveSchoolId}
