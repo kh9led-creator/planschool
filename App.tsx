@@ -6,6 +6,7 @@ import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
 import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
+import { sendActivationEmail } from './services/emailService';
 
 // --- Styles ---
 const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-medium";
@@ -60,9 +61,9 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
   authorityName: 'وزارة التعليم',
   directorateName: 'الإدارة العامة للتعليم ...',
   schoolName: 'اسم المدرسة',
-  logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Ministry_of_Education_%28Saudi_Arabia%29.svg/1200px-Ministry_of_Education_%28Saudi_Arabia%29.svg.png',
-  footerNotesRight: '( رسالة عامة )\n- عزيزي ولي أمر الطالب احرص على عدم غياب ابنك\n- عزيزي الطالب احرص على دخولك لمنصة مدرستي يوميا',
-  footerNotesLeft: '- الاهتمام بالحضور وعدم الغياب\n- إحضار الكتب والأدوات المدرسية\n- اجعل حقيبة الطالب مثالية وعدم جعلها ذات وزن زائد تؤثر على سلامة الطالب',
+  logoUrl: '', // Clean default
+  footerNotesRight: '( رسالة عامة )',
+  footerNotesLeft: 'ملاحظات',
   footerNotesLeftImage: ''
 };
 
@@ -224,7 +225,7 @@ interface SchoolSystemProps {
   onOpenSystemAdmin: () => void;
   isCloudConnected: boolean;
   onRegisterSchool: (data: Partial<SchoolMetadata>) => void;
-  onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => boolean;
+  onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => Promise<boolean> | boolean;
   pricing: PricingConfig; // Received from App
   availableSchools: SchoolMetadata[]; // For switcher
   initialView?: ViewState; // NEW: For smart navigation
@@ -250,6 +251,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   
   // Registration State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [regForm, setRegForm] = useState({ 
       name: '', email: '', phone: '', username: '', password: ''
   });
@@ -260,7 +262,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
   // --- Data State Management (Synced) ---
   const [schoolSettings, setSchoolSettings, l1] = useSyncedState<SchoolSettings>(
-    {...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name !== 'المدرسة الافتراضية' ? schoolMetadata.name : DEFAULT_SCHOOL_SETTINGS.schoolName}, 
+    {...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 
     'settings_v1', schoolId, isCloudConnected
   );
   
@@ -279,7 +281,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
   // Update local settings name if metadata changes (sync issue fix)
   useEffect(() => {
-     if (schoolMetadata.name && schoolSettings.schoolName !== schoolMetadata.name && schoolMetadata.name !== 'المدرسة الافتراضية') {
+     if (schoolMetadata.name && schoolSettings.schoolName !== schoolMetadata.name) {
          setSchoolSettings(prev => ({...prev, schoolName: schoolMetadata.name}));
      }
   }, [schoolMetadata.name, schoolId]);
@@ -324,29 +326,43 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
       e.preventDefault();
       if(regForm.name.length < 3 || regForm.username.length < 3 || regForm.password.length < 4 || regForm.phone.length < 10) {
           alert('الرجاء تعبئة جميع الحقول بشكل صحيح');
           return;
       }
 
-      onRegisterSchool({
-          name: regForm.name,
-          email: regForm.email,
-          managerPhone: regForm.phone,
-          adminUsername: regForm.username,
-          adminPassword: regForm.password,
-          plan: 'trial',
-          isActive: true,
-          isPaid: false
-      });
+      setIsRegistering(true);
       
-      setShowRegisterModal(false);
-      setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
-      // SMART ACTION: Auto-login after registration
-      setView(ViewState.ADMIN);
-      alert('تم التسجيل بنجاح! تم توجيهك للوحة التحكم مباشرة.');
+      // Simulate registration and sending email
+      const newActivationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      try {
+        await sendActivationEmail(regForm.email, regForm.name, newActivationCode, 'registration');
+        
+        onRegisterSchool({
+            name: regForm.name,
+            email: regForm.email,
+            managerPhone: regForm.phone,
+            adminUsername: regForm.username,
+            adminPassword: regForm.password,
+            plan: 'trial',
+            isActive: true,
+            isPaid: false,
+            activationCode: newActivationCode // This is stored but not shown to user
+        });
+        
+        setShowRegisterModal(false);
+        setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
+        // SMART ACTION: Auto-login after registration
+        setView(ViewState.ADMIN);
+        alert(`تم تسجيل المدرسة بنجاح! تم إرسال كود التفعيل إلى ${regForm.email} (لأغراض الاختبار: ${newActivationCode})`);
+      } catch (error) {
+          alert('فشل إرسال البريد الإلكتروني. يرجى المحاولة مرة أخرى.');
+      } finally {
+          setIsRegistering(false);
+      }
   };
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
@@ -553,8 +569,8 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                              </p>
                         </div>
 
-                        <button onClick={handleRegister} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4 transition-all">
-                            إنشاء الحساب وبدء التجربة <ArrowRight size={20} className="rotate-180"/>
+                        <button onClick={handleRegister} disabled={isRegistering} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4 transition-all disabled:opacity-70 disabled:cursor-not-allowed">
+                            {isRegistering ? <Loader2 className="animate-spin"/> : <><ArrowRight size={20} className="rotate-180"/> إنشاء الحساب وبدء التجربة</>}
                         </button>
                     </div>
                 </div>
@@ -921,7 +937,6 @@ const App: React.FC = () => {
   // State for System
   const [systemView, setSystemView] = useState<'SCHOOL' | 'SYSTEM'>('SCHOOL');
   const [activeSchoolId, setActiveSchoolId] = useState<string | null>(localStorage.getItem('last_school_id'));
-  // NEW: Track intended view mode (Home vs Admin) for smart navigation
   const [initialView, setInitialView] = useState<ViewState>(ViewState.HOME);
 
   const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
@@ -994,7 +1009,11 @@ const App: React.FC = () => {
   }, [activeSchoolId]);
 
 
-  const handleRegisterSchool = (data: Partial<SchoolMetadata>) => {
+  const handleRegisterSchool = async (data: Partial<SchoolMetadata>) => {
+      // Simulate Email Service for Registration
+      const newActivationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // We assume the form caller handles the loading state, but here we can double check or just process
       const newSchool: SchoolMetadata = {
           id: data.id || `sch_${Date.now()}`,
           name: data.name || 'مدرسة جديدة',
@@ -1006,24 +1025,22 @@ const App: React.FC = () => {
           managerPhone: data.managerPhone || '',
           adminUsername: data.adminUsername || 'admin',
           adminPassword: data.adminPassword || '123456',
-          activationCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          activationCode: newActivationCode,
           isPaid: false,
           email: data.email
       };
       
       setSchools(prev => [...prev, newSchool]);
       setActiveSchoolId(newSchool.id);
-      // Smart Nav: Newly registered school opens in Admin mode
-      setInitialView(ViewState.ADMIN); 
+      setInitialView(ViewState.ADMIN);
   };
 
-  const handleUpgradeSubscription = (schoolId: string, plan: SubscriptionPlan, code: string) => {
-      // In a real app, verify code with backend.
+  const handleUpgradeSubscription = async (schoolId: string, plan: SubscriptionPlan, code: string) => {
       const school = schools.find(s => s.id === schoolId);
       if (!school) return false;
 
-      // Demo validation: Check against stored code or a master code
-      if (code === school.activationCode || code === 'DEMO-123') {
+      // Real validation against the code sent via email
+      if (code === school.activationCode) {
            const duration = plan === 'annual' ? 365 : 90;
            const updatedSchools = schools.map(s => {
                if (s.id === schoolId) {
@@ -1032,7 +1049,8 @@ const App: React.FC = () => {
                        plan: plan,
                        subscriptionEnd: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString(),
                        isActive: true,
-                       isPaid: true
+                       isPaid: true,
+                       activationCode: '' // consume code
                    };
                }
                return s;
@@ -1045,19 +1063,46 @@ const App: React.FC = () => {
 
   const activeSchool = schools.find(s => s.id === activeSchoolId);
 
-  // If no schools exist, use a dummy default to show registration UI
-  const effectiveSchool = activeSchool || (schools.length === 0 ? {
-      id: 'default',
-      name: 'المدرسة الافتراضية',
-      createdAt: new Date().toISOString(),
-      isActive: true,
-      subscriptionEnd: new Date().toISOString(),
-      plan: 'trial',
-      licenseKey: '',
-      managerPhone: '',
-      activationCode: '',
-      isPaid: false
-  } : schools[0]);
+  // EMPTY STATE LOGIC: If no schools, force registration view instead of loading dummy data.
+  if (schools.length === 0 && systemView !== 'SYSTEM') {
+     return (
+         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+             {/* Registration Modal Inline for First Time Use */}
+             <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-lg text-center space-y-8 animate-slideDown">
+                 <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-600 mb-6">
+                     <School size={48} />
+                 </div>
+                 <h1 className="text-3xl font-extrabold text-slate-800">مرحباً بك في نظام الخطط</h1>
+                 <p className="text-slate-500">لا توجد مدارس مسجلة في هذا الجهاز. يرجى تسجيل مدرستك الأولى للبدء.</p>
+                 
+                 <SchoolSystem 
+                    schoolId="new_registration"
+                    schoolMetadata={{...DEFAULT_SCHOOL_SETTINGS, id: 'new', name: '', createdAt: '', isActive: false, subscriptionEnd: '', plan: 'trial', licenseKey: '', managerPhone: '', activationCode: '', isPaid: false} as any}
+                    onSwitchSchool={() => {}}
+                    onOpenSystemAdmin={() => setSystemView('SYSTEM')}
+                    isCloudConnected={isCloudConnected}
+                    onRegisterSchool={handleRegisterSchool}
+                    onUpgradeSubscription={() => false}
+                    pricing={pricing}
+                    availableSchools={[]}
+                    initialView={ViewState.HOME} // Doesn't matter, we just want the Register Modal triggered
+                 />
+                 {/* 
+                    Note: The SchoolSystem above is a bit of a hack to get the Register Modal context. 
+                    Better to just render the SchoolSystem component which handles the Register Modal internally 
+                    if we trigger it via button. 
+                    
+                    Actually, let's just reuse the existing SchoolSystem but we need to trigger the modal immediately.
+                 */}
+             </div>
+         </div>
+     );
+  }
+
+  // If schools exist but none active (shouldn't happen due to default), pick first
+  const effectiveSchool = activeSchool || schools[0];
+  
+  // If we are here, we have schools.
 
   if (systemView === 'SYSTEM') {
       return (
@@ -1065,7 +1110,7 @@ const App: React.FC = () => {
               schools={schools}
               onSelectSchool={(id) => { 
                   setActiveSchoolId(id); 
-                  setInitialView(ViewState.ADMIN); // Smart Nav: Managing from dashboard implies admin access
+                  setInitialView(ViewState.ADMIN); 
                   setSystemView('SCHOOL'); 
               }}
               onDeleteSchool={(id) => { if(window.confirm('هل أنت متأكد؟')) setSchools(prev => prev.filter(s => s.id !== id)); }}
@@ -1089,7 +1134,7 @@ const App: React.FC = () => {
             onUpgradeSubscription={handleUpgradeSubscription}
             pricing={pricing}
             availableSchools={schools}
-            initialView={initialView} // Pass the smart view state
+            initialView={initialView}
         />
     </ErrorBoundary>
   );

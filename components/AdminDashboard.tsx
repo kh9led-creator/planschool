@@ -3,8 +3,9 @@ import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, Archiv
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
 import AttendanceReportTemplate from './AttendanceReportTemplate';
 import InvoiceModal from './InvoiceModal';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2 } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
+import { sendActivationEmail } from '../services/emailService';
 
 // --- Styles ---
 const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-400 text-sm font-medium";
@@ -20,6 +21,7 @@ interface SchoolMetadata {
     plan: string;
     isActive: boolean;
     activationCode: string; // Included for demo purposes
+    email?: string; // Needed for renewal email
 }
 
 interface AdminDashboardProps {
@@ -51,7 +53,7 @@ interface AdminDashboardProps {
   onSendMessage: (msg: Message) => void;
   // Subscription Props
   schoolMetadata?: SchoolMetadata;
-  onRenewSubscription?: (plan: string, code: string) => boolean;
+  onRenewSubscription?: (plan: string, code: string) => Promise<boolean> | boolean;
   pricing?: PricingConfig;
   schoolId: string; // New Prop for Data Ownership
 }
@@ -183,6 +185,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [renewPlan, setRenewPlan] = useState<'quarterly' | 'annual'>('quarterly');
   const [renewStep, setRenewStep] = useState(1); // 1: Invoice, 2: Code
   const [activationCodeInput, setActivationCodeInput] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
 
   // --- Noor Import Logic (Updated for automatic Class creation) ---
   const handleNoorImportClick = () => {
@@ -394,10 +397,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setRenewStep(1);
   };
 
-  const handleRenewCodeSubmit = (e: React.FormEvent) => {
+  const handlePaymentConfirm = async () => {
+     if (!schoolMetadata) return;
+     
+     setIsSendingCode(true);
+     try {
+         // Generate code (Simulating backend logic)
+         // Note: We are using the existing activation code logic for simplicity, 
+         // but in real world we would generate a new one.
+         const renewalCode = schoolMetadata.activationCode; 
+         
+         await sendActivationEmail(schoolMetadata.email || 'manager@school.com', schoolSettings.schoolName, renewalCode, 'renewal');
+         
+         setIsSendingCode(false);
+         setRenewStep(2);
+         alert(`تم إرسال كود التفعيل إلى البريد الإلكتروني (لأغراض الاختبار: ${renewalCode})`);
+     } catch (e) {
+         alert('فشل إرسال كود التفعيل.');
+         setIsSendingCode(false);
+     }
+  };
+
+  const handleRenewCodeSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (onRenewSubscription) {
-          const success = onRenewSubscription(renewPlan, activationCodeInput);
+          const success = await onRenewSubscription(renewPlan, activationCodeInput);
           if (success) {
               alert('تم تجديد الاشتراك بنجاح!');
               setShowRenewModal(false);
@@ -540,7 +564,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <p className="font-bold font-mono">{schoolMetadata.subscriptionEnd}</p>
                                     </div>
                                     <div className={`bg-white px-3 py-2 rounded-lg flex items-center font-bold ${schoolMetadata.isActive && !isExpired ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {schoolMetadata.isActive && !isExpired ? 'نشط' : 'مجمد'}
+                                        {schoolMetadata.isActive && !isExpired ? 'نشط' : 'غير نشط'}
                                     </div>
                                 </div>
                             </div>
@@ -630,7 +654,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                      amount={renewPlan === 'annual' ? pricing.annual : pricing.quarterly}
                      date={new Date().toISOString().split('T')[0]}
                      invoiceId={`INV-${Math.floor(1000 + Math.random() * 9000)}`}
-                     onConfirm={() => setRenewStep(2)}
+                     onConfirm={handlePaymentConfirm}
                  />
              ) : (
                 <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-8 text-center animate-slideDown">
@@ -638,7 +662,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Key size={40} />
                     </div>
                     <h3 className="font-bold text-xl text-slate-800">تفعيل التجديد</h3>
-                    <p className="text-slate-500 text-sm mt-2 mb-6">يرجى إدخال كود التفعيل الذي تم استلامه بعد الدفع.</p>
+                    <p className="text-slate-500 text-sm mt-2 mb-6">تم إرسال كود التفعيل إلى بريدك الإلكتروني.</p>
                     <form onSubmit={handleRenewCodeSubmit}>
                         <input 
                             type="text" 
@@ -653,7 +677,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </button>
                     </form>
                     <button onClick={() => setShowRenewModal(false)} className="mt-4 text-sm text-slate-400 hover:text-slate-600">إلغاء</button>
-                    <div className="mt-4 p-2 bg-slate-50 text-[10px] text-slate-400 rounded">لأغراض العرض التجريبي: كود التفعيل هو <b>{schoolMetadata.activationCode}</b></div>
                 </div>
              )}
         </div>
