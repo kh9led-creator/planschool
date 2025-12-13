@@ -156,9 +156,11 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     return defaultValue;
   });
 
-  // Load from Cloud on Mount
+  // Load from Cloud on Mount (or when schoolId changes)
   useEffect(() => {
     let mounted = true;
+    setIsLoaded(false); // Reset loaded state when switching schools
+    
     const fetchCloud = async () => {
         if (!isCloudEnabled || !getDB()) {
             setIsLoaded(true);
@@ -169,6 +171,15 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
             if (cloudData) {
                 setValue(cloudData);
                 window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(cloudData));
+            } else {
+                // If cloud data is empty but we have local data for this school, keep local? 
+                // Better approach for switching: Re-read local storage for the NEW schoolId first
+                const local = window.localStorage.getItem(`${schoolId}_${key}`);
+                if (local) {
+                    try { setValue(JSON.parse(local)); } catch(e) {}
+                } else {
+                    setValue(defaultValue);
+                }
             }
             setIsLoaded(true);
         }
@@ -215,6 +226,7 @@ interface SchoolSystemProps {
   onRegisterSchool: (data: Partial<SchoolMetadata>) => void;
   onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => boolean;
   pricing: PricingConfig; // Received from App
+  availableSchools: SchoolMetadata[]; // For switcher
 }
 
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
@@ -225,12 +237,14 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   isCloudConnected,
   onRegisterSchool,
   onUpgradeSubscription,
-  pricing
+  pricing,
+  availableSchools
 }) => {
   const [view, setView] = useState<ViewState>(ViewState.HOME);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   
   // Registration State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -261,11 +275,12 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
   const isLoading = isCloudConnected && (!l1 || !l2 || !l3 || !l4 || !l5 || !l6 || !l7 || !l8 || !l9 || !l10 || !l11);
 
+  // Update local settings name if metadata changes (sync issue fix)
   useEffect(() => {
      if (schoolMetadata.name && schoolSettings.schoolName !== schoolMetadata.name && schoolMetadata.name !== 'المدرسة الافتراضية') {
          setSchoolSettings(prev => ({...prev, schoolName: schoolMetadata.name}));
      }
-  }, [schoolMetadata.name]);
+  }, [schoolMetadata.name, schoolId]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,6 +306,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
         return;
     }
     
+    // Check against teachers loaded for THIS schoolId
     const teacher = teachers.find(t => t.username === username && t.password === password);
     if (teacher) {
         if (!schoolMetadata.isActive) {
@@ -302,7 +318,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
         setUsername('');
         setPassword('');
     } else {
-        alert('بيانات الدخول غير صحيحة.');
+        alert('بيانات الدخول غير صحيحة. تأكد من اختيار المدرسة الصحيحة.');
     }
   };
 
@@ -335,7 +351,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
               <Loader2 className="animate-spin text-indigo-600" size={40} />
-              <p className="text-gray-600 font-bold">جاري المزامنة مع قاعدة البيانات السحابية...</p>
+              <p className="text-gray-600 font-bold">جاري تحميل بيانات المدرسة...</p>
           </div>
       )
   }
@@ -389,15 +405,43 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
              <div>
                 <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">نظام الخطط الأسبوعية</h1>
                 <p className="text-slate-500 text-sm mt-1 font-medium">{schoolMetadata.name}</p>
-                {!isExpired ? (
-                  <p className="text-emerald-600 text-[10px] mt-2 font-bold bg-emerald-50 inline-block px-2 py-1 rounded-lg">
-                    {schoolMetadata.plan === 'trial' ? 'فترة تجريبية' : 'اشتراك مدفوع'} ({daysRemaining} يوم متبقي)
-                  </p>
-                ) : (
-                  <p className="text-red-600 text-[10px] mt-2 font-bold bg-red-50 inline-block px-2 py-1 rounded-lg flex items-center gap-1">
-                    <AlertOctagon size={12}/> الاشتراك منتهي
-                  </p>
+                
+                {/* School Switcher */}
+                {availableSchools.length > 1 && (
+                    <div className="relative mt-2 inline-block">
+                        <button 
+                            onClick={() => setShowSchoolMenu(!showSchoolMenu)}
+                            className="text-indigo-600 text-xs font-bold flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors mx-auto"
+                        >
+                            تغيير المدرسة <ChevronDown size={12}/>
+                        </button>
+                        {showSchoolMenu && (
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl mt-2 py-1 z-50 max-h-60 overflow-y-auto">
+                                {availableSchools.map(s => (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => { onSwitchSchool(s.id); setShowSchoolMenu(false); }}
+                                        className={`w-full text-right px-4 py-2 text-xs font-bold hover:bg-slate-50 ${s.id === schoolId ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600'}`}
+                                    >
+                                        {s.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
+
+                <div className="mt-2">
+                    {!isExpired ? (
+                    <p className="text-emerald-600 text-[10px] font-bold bg-emerald-50 inline-block px-2 py-1 rounded-lg">
+                        {schoolMetadata.plan === 'trial' ? 'فترة تجريبية' : 'اشتراك مدفوع'} ({daysRemaining} يوم متبقي)
+                    </p>
+                    ) : (
+                    <p className="text-red-600 text-[10px] font-bold bg-red-50 inline-block px-2 py-1 rounded-lg flex items-center gap-1 mx-auto w-fit">
+                        <AlertOctagon size={12}/> الاشتراك منتهي
+                    </p>
+                    )}
+                </div>
              </div>
            </div>
 
@@ -445,7 +489,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
            </form>
            
            <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
-               <span>v3.9.6 (Preview Fix)</span>
+               <span>v3.9.7</span>
                <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
                    {schoolMetadata.plan.toUpperCase()}
                </span>
@@ -1016,6 +1060,7 @@ const App: React.FC = () => {
             onRegisterSchool={handleRegisterSchool}
             onUpgradeSubscription={handleUpgradeSubscription}
             pricing={pricing}
+            availableSchools={schools}
         />
     </ErrorBoundary>
   );
