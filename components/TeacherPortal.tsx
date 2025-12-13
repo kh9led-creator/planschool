@@ -4,6 +4,9 @@ import { DAYS_OF_WEEK } from '../services/data';
 import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer } from 'lucide-react';
 import AttendanceReportTemplate from './AttendanceReportTemplate';
 
+// --- Styles ---
+const teacherInputClass = "w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 text-sm font-medium text-gray-700 placeholder-gray-400 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none transition-all";
+
 interface TeacherPortalProps {
   teacher: Teacher;
   schedule: ScheduleSlot[];
@@ -221,7 +224,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                     </label>
                                     <input 
                                       type="text" 
-                                      className="teacher-input"
+                                      className={teacherInputClass}
                                       placeholder="ما هو موضوع الدرس اليوم؟"
                                       value={getEntryValue(slot, 'lessonTopic')}
                                       onChange={(e) => handleInputChange(slot, 'lessonTopic', e.target.value)}
@@ -233,7 +236,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                     </label>
                                     <input 
                                       type="text" 
-                                      className="teacher-input"
+                                      className={teacherInputClass}
                                       placeholder="تفاصيل الواجب..."
                                       value={getEntryValue(slot, 'homework')}
                                       onChange={(e) => handleInputChange(slot, 'homework', e.target.value)}
@@ -246,7 +249,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                 </label>
                                 <input 
                                   type="text" 
-                                  className="teacher-input"
+                                  className={teacherInputClass}
                                   placeholder="أي ملاحظات للطالب أو ولي الأمر..."
                                   value={getEntryValue(slot, 'notes')}
                                   onChange={(e) => handleInputChange(slot, 'notes', e.target.value)}
@@ -470,13 +473,6 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
               </div>
           </div>
       )}
-      
-      <style>{`
-        .teacher-input {
-            @apply w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 text-sm font-medium text-gray-700 placeholder-gray-400 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none transition-all;
-        }
-      `}</style>
-
     </div>
   );
 };

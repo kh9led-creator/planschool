@@ -92,3 +92,9 @@ export interface Message {
   isRead: boolean;
   type: 'announcement' | 'direct';
 }
+
+export interface PricingConfig {
+    quarterly: number;
+    annual: number;
+    currency: string;
+}

@@ -1,11 +1,14 @@
-import React, { useState, useEffect, ErrorInfo, ReactNode, Component } from 'react';
+import React, { useState, useEffect, ErrorInfo, ReactNode, Component, useRef } from 'react';
 import WeeklyPlanTemplate from './components/WeeklyPlanTemplate';
 import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
 import InvoiceModal from './components/InvoiceModal';
-import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone } from 'lucide-react';
+import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
+
+// --- Styles ---
+const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-medium";
 
 // --- 1. Robust Types & Constants ---
 
@@ -36,6 +39,20 @@ interface SchoolMetadata {
   activationCode: string; // New field
   isPaid: boolean; // New field
   isVerified?: boolean;
+}
+
+interface PaymentSettings {
+    bankName: string;
+    accountName: string;
+    iban: string;
+    swiftCode: string;
+    enableStripe: boolean;
+    stripePublicKey: string;
+    stripeSecretKey: string;
+    enableBankTransfer: boolean;
+    vatNumber: string;
+    vatRate: number;
+    currency: string;
 }
 
 const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
@@ -125,6 +142,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 // --- 3. Enhanced Storage Hook (Hybrid: Cloud + Local) ---
 function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isCloudEnabled: boolean): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
   const [isLoaded, setIsLoaded] = useState(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [value, setValue] = useState<T>(() => {
     try {
@@ -138,6 +156,7 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     return defaultValue;
   });
 
+  // Load from Cloud on Mount
   useEffect(() => {
     let mounted = true;
     const fetchCloud = async () => {
@@ -158,18 +177,28 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     return () => { mounted = false; };
   }, [schoolId, key, isCloudEnabled]);
 
+  // Save to Local + Cloud (Debounced)
   useEffect(() => {
     if (!isLoaded) return;
+    
+    // Immediate Local Save
     try {
       window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(value));
     } catch (error) {
       console.error(`Error saving locally:`, error);
     }
+
+    // Debounced Cloud Save
     if (isCloudEnabled && getDB()) {
-        const timeoutId = setTimeout(() => {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        
+        debounceTimer.current = setTimeout(() => {
             saveSchoolData(schoolId, key, value);
-        }, 1000); 
-        return () => clearTimeout(timeoutId);
+        }, 2000); // Wait 2 seconds of inactivity before writing to cloud
+    }
+
+    return () => {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
     }
   }, [key, value, schoolId, isLoaded, isCloudEnabled]);
 
@@ -184,7 +213,8 @@ interface SchoolSystemProps {
   onOpenSystemAdmin: () => void;
   isCloudConnected: boolean;
   onRegisterSchool: (data: Partial<SchoolMetadata>) => void;
-  onActivateSchool: (id: string, code: string) => boolean;
+  onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => boolean;
+  pricing: PricingConfig; // Received from App
 }
 
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
@@ -194,7 +224,8 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   onOpenSystemAdmin,
   isCloudConnected,
   onRegisterSchool,
-  onActivateSchool
+  onUpgradeSubscription,
+  pricing
 }) => {
   const [view, setView] = useState<ViewState>(ViewState.HOME);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
@@ -203,13 +234,9 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   
   // Registration State
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [regStep, setRegStep] = useState(1); // 1: Info, 2: Invoice, 3: Activation
   const [regForm, setRegForm] = useState({ 
-      name: '', email: '', phone: '', username: '', password: '', plan: 'trial' as SubscriptionPlan 
+      name: '', email: '', phone: '', username: '', password: ''
   });
-  const [pendingSchoolId, setPendingSchoolId] = useState<string | null>(null);
-  const [activationInput, setActivationInput] = useState('');
-  const [invoiceId, setInvoiceId] = useState('');
 
   // Check Subscription Status
   const isExpired = new Date(schoolMetadata.subscriptionEnd) < new Date();
@@ -242,9 +269,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isExpired) return;
-
-    // 1. Check Global System Admin
+    
     if (username === 'admin' && password === '123456') {
         setView(ViewState.ADMIN);
         setUsername('');
@@ -252,13 +277,8 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
         return;
     }
 
-    // 2. Check Specific School Admin (Registered via Portal)
     if (schoolMetadata.adminUsername && schoolMetadata.adminPassword) {
         if (username === schoolMetadata.adminUsername && password === schoolMetadata.adminPassword) {
-             if (!schoolMetadata.isActive) {
-                 alert('عذراً، حساب المدرسة غير مفعل بعد. يرجى التواصل مع الدعم الفني.');
-                 return;
-             }
              setView(ViewState.ADMIN);
              setUsername('');
              setPassword('');
@@ -266,11 +286,15 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
         }
     }
 
-    // 3. Check Teacher Login
+    if (isExpired) {
+        alert('عذراً، الاشتراك منتهي. النظام متوقف مؤقتاً.');
+        return;
+    }
+    
     const teacher = teachers.find(t => t.username === username && t.password === password);
     if (teacher) {
         if (!schoolMetadata.isActive) {
-             alert('عذراً، حساب المدرسة غير مفعل بعد.');
+             alert('عذراً، حساب المدرسة غير مفعل.');
              return;
         }
         setSelectedTeacherId(teacher.id);
@@ -282,85 +306,45 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     }
   };
 
-  // --- Registration Logic ---
-
-  // Step 1: Submit Details -> Create Inactive School
-  const handleRegisterStep1 = (e: React.FormEvent) => {
+  const handleRegister = (e: React.FormEvent) => {
       e.preventDefault();
       if(regForm.name.length < 3 || regForm.username.length < 3 || regForm.password.length < 4 || regForm.phone.length < 10) {
           alert('الرجاء تعبئة جميع الحقول بشكل صحيح');
           return;
       }
 
-      const tempId = `sch_${Date.now()}`;
-      setPendingSchoolId(tempId);
-      setInvoiceId(`INV-${Math.floor(100000 + Math.random() * 900000)}`);
-      
       onRegisterSchool({
-          id: tempId,
           name: regForm.name,
           email: regForm.email,
           managerPhone: regForm.phone,
           adminUsername: regForm.username,
           adminPassword: regForm.password,
-          plan: regForm.plan,
-          isActive: false, // Important
+          plan: 'trial',
+          isActive: true,
           isPaid: false
       });
       
-      setRegStep(2); // Move to invoice
-  };
-
-  // Step 2: Confirm Payment
-  const handleRegisterStep2 = () => {
-      setRegStep(3); // Move to Activation
-  };
-
-  // Step 3: Enter Code
-  const handleRegisterStep3 = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!pendingSchoolId) return;
-
-      const success = onActivateSchool(pendingSchoolId, activationInput);
-      if (success) {
-          alert('تم تفعيل المدرسة بنجاح! يمكنك الآن تسجيل الدخول.');
-          setShowRegisterModal(false);
-          setRegStep(1);
-          setRegForm({ name: '', email: '', phone: '', username: '', password: '', plan: 'trial' });
-          setActivationInput('');
-          setPendingSchoolId(null);
-      } else {
-          alert('كود التفعيل غير صحيح. يرجى التواصل مع الإدارة.');
-      }
+      setShowRegisterModal(false);
+      setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
+      alert('تم التسجيل بنجاح! لديك فترة تجريبية لمدة 14 يوماً.');
   };
 
   const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
 
-  const getPlanPrice = (plan: SubscriptionPlan) => {
-    switch(plan) {
-        case 'trial': return 0;
-        case 'quarterly': return 100;
-        case 'annual': return 300;
-        default: return 0;
-    }
-  };
-
   if (isLoading) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
-              <div className="loader"></div>
+              <Loader2 className="animate-spin text-indigo-600" size={40} />
               <p className="text-gray-600 font-bold">جاري المزامنة مع قاعدة البيانات السحابية...</p>
           </div>
       )
   }
 
-  // --- Views ---
-
   if (view === ViewState.HOME) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative font-sans">
         
-        {/* System Admin Button (Hidden Trigger) */}
+        {/* System Admin Trigger */}
         <button 
             onClick={onOpenSystemAdmin}
             className="absolute top-4 left-4 text-slate-300 hover:text-slate-500 p-2 rounded-full transition-colors z-20"
@@ -407,7 +391,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                 <p className="text-slate-500 text-sm mt-1 font-medium">{schoolMetadata.name}</p>
                 {!isExpired ? (
                   <p className="text-emerald-600 text-[10px] mt-2 font-bold bg-emerald-50 inline-block px-2 py-1 rounded-lg">
-                    الاشتراك ساري ({daysRemaining} يوم متبقي)
+                    {schoolMetadata.plan === 'trial' ? 'فترة تجريبية' : 'اشتراك مدفوع'} ({daysRemaining} يوم متبقي)
                   </p>
                 ) : (
                   <p className="text-red-600 text-[10px] mt-2 font-bold bg-red-50 inline-block px-2 py-1 rounded-lg flex items-center gap-1">
@@ -417,20 +401,17 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
              </div>
            </div>
 
-           {isExpired ? (
+           {isExpired && (
              <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center space-y-3">
                <Lock size={40} className="text-red-400 mx-auto" />
-               <h3 className="font-bold text-red-800">الخدمة متوقفة مؤقتاً</h3>
+               <h3 className="font-bold text-red-800">النظام مجمد</h3>
                <p className="text-xs text-red-600 leading-relaxed">
-                 عفواً، لقد انتهت صلاحية اشتراك هذه المدرسة بتاريخ {schoolMetadata.subscriptionEnd}.
-                 يرجى التواصل مع إدارة النظام لتجديد الترخيص.
+                 انتهت صلاحية الاشتراك. تم إيقاف جميع الخصائص للمعلمين. يرجى من المدير تسجيل الدخول لتجديد الاشتراك.
                </p>
-               <div className="pt-2 text-[10px] text-slate-400 font-mono select-all bg-white p-2 rounded border border-slate-100">
-                  REF: {schoolMetadata.licenseKey}
-               </div>
              </div>
-           ) : (
-             <form onSubmit={handleLogin} className="space-y-4 text-right">
+           )}
+
+           <form onSubmit={handleLogin} className="space-y-4 text-right">
                   <div className="relative group">
                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                         <UserCog size={18} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors"/>
@@ -461,121 +442,72 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                   >
                     تسجيل الدخول
                   </button>
-             </form>
-           )}
+           </form>
            
            <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
-               <span>v3.5.0</span>
+               <span>v3.9.6 (Preview Fix)</span>
                <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
-                   {schoolMetadata.plan.toUpperCase()} LICENSE
+                   {schoolMetadata.plan.toUpperCase()}
                </span>
            </div>
         </div>
 
-        {/* Registration Modal - MULTI STEP */}
+        {/* Simplified Registration Modal */}
         {showRegisterModal && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-slideDown flex flex-col max-h-[90vh]">
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white flex justify-between items-start shrink-0">
                         <div>
                             <h3 className="text-xl font-bold flex items-center gap-2"><School size={24}/> تسجيل مدرسة جديدة</h3>
-                            <p className="text-indigo-100 text-sm mt-1">
-                                {regStep === 1 ? 'البيانات الأساسية' : regStep === 2 ? 'الفاتورة والسداد' : 'التفعيل النهائي'}
-                            </p>
+                            <p className="text-indigo-100 text-sm mt-1">ابدأ فترتك التجريبية المجانية (14 يوم)</p>
                         </div>
-                        <button onClick={() => { setShowRegisterModal(false); setRegStep(1); }} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                        <button onClick={() => setShowRegisterModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
                             <X size={20}/>
                         </button>
                     </div>
 
-                    <div className="p-0 overflow-y-auto">
-                        {regStep === 1 && (
-                            <div className="p-8 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">اسم المدرسة</label>
-                                    <input type="text" className="input-modern" placeholder="مدرسة..." value={regForm.name} onChange={(e) => setRegForm({...regForm, name: e.target.value})} />
+                    <div className="p-8 space-y-4 overflow-y-auto">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">اسم المدرسة</label>
+                            <input type="text" className={inputModernClass} placeholder="مدرسة..." value={regForm.name} onChange={(e) => setRegForm({...regForm, name: e.target.value})} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">رقم جوال المدير</label>
+                                <div className="relative">
+                                    <input type="text" className={`${inputModernClass} pl-10`} placeholder="05xxxxxxxx" value={regForm.phone} onChange={(e) => setRegForm({...regForm, phone: e.target.value})} />
+                                    <Smartphone size={18} className="absolute left-3 top-3.5 text-slate-400"/>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">رقم جوال المدير</label>
-                                        <div className="relative">
-                                            <input type="text" className="input-modern pl-10" placeholder="05xxxxxxxx" value={regForm.phone} onChange={(e) => setRegForm({...regForm, phone: e.target.value})} />
-                                            <Smartphone size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
-                                        <div className="relative">
-                                            <input type="email" className="input-modern pl-10" placeholder="email@..." value={regForm.email} onChange={(e) => setRegForm({...regForm, email: e.target.value})} />
-                                            <Mail size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">اسم المستخدم</label>
-                                        <input type="text" className="input-modern" placeholder="admin" value={regForm.username} onChange={(e) => setRegForm({...regForm, username: e.target.value})} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1">كلمة المرور</label>
-                                        <input type="password" className="input-modern" placeholder="****" value={regForm.password} onChange={(e) => setRegForm({...regForm, password: e.target.value})} />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">الباقة</label>
-                                    <select className="input-modern" value={regForm.plan} onChange={(e) => setRegForm({...regForm, plan: e.target.value as any})}>
-                                        <option value="trial">تجربة مجانية (أسبوعين) - 0 ريال</option>
-                                        <option value="quarterly">باقة فصلية (3 أشهر) - 100 ريال</option>
-                                        <option value="annual">باقة سنوية (سنة كاملة) - 300 ريال</option>
-                                    </select>
-                                </div>
-                                <button onClick={handleRegisterStep1} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4">
-                                    التالي: الفاتورة <ArrowRight size={20} className="rotate-180"/>
-                                </button>
                             </div>
-                        )}
-
-                        {regStep === 2 && (
-                            <InvoiceModal 
-                                schoolName={regForm.name}
-                                plan={regForm.plan}
-                                amount={getPlanPrice(regForm.plan)}
-                                date={new Date().toISOString().split('T')[0]}
-                                invoiceId={invoiceId}
-                                onConfirm={handleRegisterStep2}
-                            />
-                        )}
-
-                        {regStep === 3 && (
-                            <div className="p-8 space-y-6 text-center animate-fadeIn">
-                                <div className="bg-yellow-50 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-yellow-600 mb-4 border border-yellow-200">
-                                    <Lock size={40} />
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                                <div className="relative">
+                                    <input type="email" className={`${inputModernClass} pl-10`} placeholder="email@..." value={regForm.email} onChange={(e) => setRegForm({...regForm, email: e.target.value})} />
+                                    <Mail size={18} className="absolute left-3 top-3.5 text-slate-400"/>
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-xl text-slate-800">التفعيل النهائي</h3>
-                                    <p className="text-slate-500 text-sm mt-2 leading-relaxed">
-                                        تم إرسال طلبك. يرجى إدخال 
-                                        <span className="font-bold text-slate-800"> كود التفعيل </span> 
-                                        الذي حصلت عليه من إدارة النظام لإكمال التسجيل.
-                                    </p>
-                                </div>
-                                
-                                <form onSubmit={handleRegisterStep3}>
-                                    <input 
-                                        type="text" 
-                                        className="w-full text-center text-3xl tracking-[0.5em] font-mono font-bold border-2 border-slate-200 rounded-xl py-4 focus:border-indigo-500 outline-none transition-all uppercase mb-6"
-                                        placeholder="CODE"
-                                        value={activationInput}
-                                        onChange={(e) => setActivationInput(e.target.value)}
-                                        autoFocus
-                                    />
-                                    <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2">
-                                        <CheckCircle size={20}/> تفعيل الحساب
-                                    </button>
-                                </form>
-                                <p className="text-xs text-slate-400 mt-4">للحصول على الكود، يرجى التواصل مع الدعم الفني: 920000000</p>
                             </div>
-                        )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">اسم المستخدم</label>
+                                <input type="text" className={inputModernClass} placeholder="admin" value={regForm.username} onChange={(e) => setRegForm({...regForm, username: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">كلمة المرور</label>
+                                <input type="password" className={inputModernClass} placeholder="****" value={regForm.password} onChange={(e) => setRegForm({...regForm, password: e.target.value})} />
+                            </div>
+                        </div>
+                        
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex gap-3 items-start">
+                             <CheckCircle className="text-indigo-600 shrink-0 mt-0.5" size={18}/>
+                             <p className="text-xs text-indigo-800 leading-relaxed">
+                                 عند التسجيل، ستحصل على صلاحية كاملة للنظام لمدة 14 يوماً مجاناً. يمكنك ترقية الباقة لاحقاً من إعدادات المدرسة.
+                             </p>
+                        </div>
+
+                        <button onClick={handleRegister} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4 transition-all">
+                            إنشاء الحساب وبدء التجربة <ArrowRight size={20} className="rotate-180"/>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -585,9 +517,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     );
   }
 
-  // Teacher & Admin Views remain... (unchanged)
   if (view === ViewState.TEACHER && currentTeacher) {
-      // ... (Same as before)
       return (
       <div className="min-h-screen flex flex-col bg-gray-100">
          <div className="bg-gradient-to-r from-green-700 to-emerald-600 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-40">
@@ -629,7 +559,6 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   }
 
   if (view === ViewState.ADMIN) {
-      // ... (Same as before)
       return (
        <div className="min-h-screen flex flex-col bg-gray-100">
          <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 shadow-lg flex justify-between items-center no-print sticky top-0 z-40">
@@ -638,6 +567,7 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                 <div>
                      <h1 className="font-bold text-lg leading-tight">بوابة الإدارة</h1>
                      <span className="text-slate-400 text-xs block">لوحة التحكم المركزية</span>
+                     {isExpired && <span className="text-[10px] bg-red-500 text-white px-2 rounded-full ml-1 animate-pulse">اشتراك منتهي</span>}
                 </div>
             </div>
             <div className="flex items-center gap-3">
@@ -678,6 +608,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
             onMarkAttendance={(record) => setAttendanceRecords(prev => [...prev.filter(r => !(r.studentId === record.studentId && r.date === record.date)), record])}
             messages={messages}
             onSendMessage={(msg) => setMessages(prev => [msg, ...prev])}
+            // Pass Subscription Data
+            schoolMetadata={schoolMetadata}
+            onRenewSubscription={(plan, code) => onUpgradeSubscription(schoolMetadata.id, plan, code)}
+            pricing={pricing}
          />
       </div>
     );
@@ -686,484 +620,405 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   return <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto"/> جاري تحميل النظام...</div>;
 };
 
-// --- 5. System Admin Dashboard ---
-interface SystemDashboardProps {
-  config: FirebaseConfig;
-  onSaveConfig: (cfg: FirebaseConfig) => void;
-  schools: SchoolMetadata[];
-  onAddSchool: (school: SchoolMetadata) => void;
-  onUpdateSchool: (school: SchoolMetadata) => void;
-  onDeleteSchool: (id: string) => void;
-  onClose: () => void;
-}
+// --- 5. System Dashboard & Main App ---
 
-const SystemDashboard: React.FC<SystemDashboardProps> = ({
-  config, onSaveConfig, schools, onAddSchool, onUpdateSchool, onDeleteSchool, onClose
-}) => {
-  const [localConfig, setLocalConfig] = useState<FirebaseConfig>(config);
-  const [activeTab, setActiveTab] = useState<'cloud' | 'schools'>('schools');
-  
-  // Create School Form State
-  const [newSchoolName, setNewSchoolName] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('trial');
-  const [durationMonths, setDurationMonths] = useState(12);
-
-  const generateLicenseKey = () => {
-      return Array.from({length: 4}, () => Math.random().toString(36).substring(2, 6).toUpperCase()).join('-');
-  };
-  
-  const generateActivationCode = () => {
-      return Math.floor(1000 + Math.random() * 9000).toString();
-  };
-
-  const handleAddSchool = () => {
-      if(!newSchoolName) return;
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      
-      // Auto-calculate end date based on plan
-      if (selectedPlan === 'trial') {
-          endDate.setDate(startDate.getDate() + 14);
-      } else if (selectedPlan === 'quarterly') {
-          endDate.setMonth(startDate.getMonth() + 3);
-      } else if (selectedPlan === 'annual') {
-          endDate.setFullYear(startDate.getFullYear() + 1);
-      } else {
-          endDate.setMonth(startDate.getMonth() + durationMonths);
-      }
-
-      const newSchool: SchoolMetadata = {
-          id: `sch_${Date.now()}`,
-          name: newSchoolName,
-          createdAt: startDate.toISOString(),
-          isActive: true, // Manual add is active by default
-          subscriptionEnd: endDate.toISOString().split('T')[0],
-          plan: selectedPlan,
-          licenseKey: generateLicenseKey(),
-          activationCode: generateActivationCode(),
-          managerPhone: '',
-          isPaid: true
-      };
-      onAddSchool(newSchool);
-      setNewSchoolName('');
-      alert(`تم إنشاء مدرسة: ${newSchoolName}\nرمز الترخيص: ${newSchool.licenseKey}`);
-  };
-
-  const handleRenew = (school: SchoolMetadata, months: number) => {
-      const currentEnd = new Date(school.subscriptionEnd) > new Date() ? new Date(school.subscriptionEnd) : new Date();
-      currentEnd.setMonth(currentEnd.getMonth() + months);
-      onUpdateSchool({
-          ...school,
-          subscriptionEnd: currentEnd.toISOString().split('T')[0],
-          isActive: true // Reactivate if it was expired
-      });
-  };
-
-  const getPlanBadge = (plan: string) => {
-      switch(plan) {
-          case 'trial': return <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs font-bold border border-orange-200">تجربة (14 يوم)</span>;
-          case 'quarterly': return <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-bold border border-blue-200">فصلية (3 أشهر)</span>;
-          case 'annual': return <span className="bg-purple-100 text-purple-600 px-2 py-1 rounded text-xs font-bold border border-purple-200">سنوية</span>;
-          default: return <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold border border-gray-200">{plan}</span>;
-      }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white w-full max-w-6xl rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row h-[85vh]">
-        {/* Sidebar */}
-        <div className="bg-slate-800 text-white p-6 md:w-64 shrink-0 flex flex-col justify-between">
-           <div>
-              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                  <UserCog /> إدارة النظام
-              </h2>
-              <div className="space-y-2">
-                  <button onClick={() => setActiveTab('schools')} className={`w-full text-right px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'schools' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-700 text-slate-300'}`}>
-                      <Building2 size={18}/> المدارس والاشتراكات
-                  </button>
-                  <button onClick={() => setActiveTab('cloud')} className={`w-full text-right px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'cloud' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-700 text-slate-300'}`}>
-                      <Cloud size={18}/> الربط السحابي
-                  </button>
-              </div>
-           </div>
-           <button onClick={onClose} className="mt-8 bg-white/10 hover:bg-white/20 text-white py-2 px-4 rounded-lg flex items-center gap-2 w-full transition-colors">
-              <Power size={16} /> خروج للنظام
-           </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-8 flex-1 overflow-y-auto bg-slate-50">
-            {activeTab === 'cloud' && (
-                <section className="max-w-2xl">
-                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 text-xl">
-                        <Cloud className="text-indigo-500"/> إعدادات Firebase
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        {/* Config Inputs... (Same as before) */}
-                        <div className="space-y-3">
-                            <label className="text-xs font-bold text-slate-500">API Config</label>
-                            <input type="text" placeholder="apiKey" className="input-field" value={localConfig.apiKey} onChange={e => setLocalConfig({...localConfig, apiKey: e.target.value})} />
-                            <input type="text" placeholder="authDomain" className="input-field" value={localConfig.authDomain} onChange={e => setLocalConfig({...localConfig, authDomain: e.target.value})} />
-                            <input type="text" placeholder="projectId" className="input-field" value={localConfig.projectId} onChange={e => setLocalConfig({...localConfig, projectId: e.target.value})} />
-                            <input type="text" placeholder="storageBucket" className="input-field" value={localConfig.storageBucket} onChange={e => setLocalConfig({...localConfig, storageBucket: e.target.value})} />
-                            <input type="text" placeholder="messagingSenderId" className="input-field" value={localConfig.messagingSenderId} onChange={e => setLocalConfig({...localConfig, messagingSenderId: e.target.value})} />
-                            <input type="text" placeholder="appId" className="input-field" value={localConfig.appId} onChange={e => setLocalConfig({...localConfig, appId: e.target.value})} />
-                        </div>
-                        <button onClick={() => onSaveConfig(localConfig)} className="bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 mt-2">
-                            <Save size={18}/> حفظ الاتصال
-                        </button>
-                    </div>
-                </section>
-            )}
-
-            {activeTab === 'schools' && (
-                <section>
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-slate-800 flex items-center gap-2 text-xl">
-                            <CreditCard className="text-emerald-500"/> إدارة الاشتراكات
-                        </h3>
-                        <div className="bg-white px-3 py-1 rounded-full text-xs font-bold shadow-sm border text-slate-500">
-                            {schools.length} مدرسة مسجلة
-                        </div>
-                    </div>
-
-                    {/* Add School Card (Manual) */}
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
-                        <h4 className="font-bold text-sm text-slate-600 mb-4 flex items-center gap-2"><PlusCircle size={16}/> إضافة مدرسة يدوياً (تفعيل مباشر)</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-slate-400 mb-1 block">اسم المدرسة</label>
-                                <input 
-                                    type="text" 
-                                    className="input-field"
-                                    placeholder="مثال: مدرسة الأفق العالمية"
-                                    value={newSchoolName}
-                                    onChange={e => setNewSchoolName(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 mb-1 block">الباقة</label>
-                                <select className="input-field" value={selectedPlan} onChange={(e) => setSelectedPlan(e.target.value as any)}>
-                                    <option value="trial">تجربة (14 يوم)</option>
-                                    <option value="quarterly">فصلية (3 أشهر)</option>
-                                    <option value="annual">سنوية (سنة)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 mb-1 block">تخصيص المدة (اختياري)</label>
-                                <select className="input-field" value={durationMonths} onChange={(e) => setDurationMonths(Number(e.target.value))} disabled={selectedPlan !== 'annual' && selectedPlan !== 'quarterly' && selectedPlan !== 'trial'}>
-                                    <option value={12}>تلقائي حسب الباقة</option>
-                                    <option value={6}>6 أشهر</option>
-                                    <option value={24}>سنتين</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={handleAddSchool}
-                            className="w-full mt-4 bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 transition-colors font-bold flex items-center justify-center gap-2"
-                        >
-                            <Key size={18}/> إنشاء ترخيص
-                        </button>
-                    </div>
-
-                    {/* Schools List */}
-                    <div className="grid grid-cols-1 gap-4">
-                        {schools.map(s => {
-                            const daysLeft = Math.ceil((new Date(s.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-                            const isExpired = daysLeft <= 0;
-                            const progressPercent = Math.min(100, Math.max(0, (daysLeft / 365) * 100)); // Rough calc
-
-                            return (
-                                <div key={s.id} className={`bg-white rounded-xl border-2 transition-all relative overflow-hidden group ${!s.isActive ? 'border-orange-200 bg-orange-50' : isExpired ? 'border-red-100' : 'border-slate-100 hover:border-indigo-200'}`}>
-                                    {/* Header Status Bar */}
-                                    <div className={`h-1.5 w-full ${!s.isActive ? 'bg-orange-500' : isExpired ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                                    
-                                    <div className="p-5 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                                         {/* 1. Basic Info (4 cols) */}
-                                         <div className="md:col-span-4">
-                                             <div className="flex items-start justify-between">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                                        {s.name}
-                                                        {s.isVerified && <CheckCircle size={14} className="text-blue-500" title="تم التحقق من البريد"/>}
-                                                    </h4>
-                                                    <div className="flex items-center gap-2 mt-1.5">
-                                                        {getPlanBadge(s.plan)}
-                                                        <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1 rounded">{s.id}</span>
-                                                    </div>
-                                                </div>
-                                             </div>
-                                         </div>
-
-                                         {/* 2. Admin Info (3 cols) */}
-                                         <div className="md:col-span-3 text-sm">
-                                             <div className="space-y-1">
-                                                 <p className="flex items-center gap-2 text-slate-600">
-                                                     <User size={14} className="text-slate-400"/>
-                                                     <span className="font-bold">{s.adminUsername || '-'}</span>
-                                                 </p>
-                                                 <p className="flex items-center gap-2 text-slate-500 text-xs">
-                                                     <Smartphone size={14} className="text-slate-400"/>
-                                                     {s.managerPhone || 'لا يوجد هاتف'}
-                                                 </p>
-                                                 <p className="flex items-center gap-2 text-slate-500 text-xs">
-                                                     <Mail size={14} className="text-slate-400"/>
-                                                     {s.email || '-'}
-                                                 </p>
-                                             </div>
-                                         </div>
-
-                                         {/* 3. Subscription Status & Code (3 cols) */}
-                                         <div className="md:col-span-3">
-                                             <div className="flex justify-between items-end mb-1">
-                                                 <span className={`text-xs font-bold ${!s.isActive ? 'text-orange-600' : isExpired ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                     {!s.isActive ? 'بانتظار التفعيل' : isExpired ? 'منتهية الصلاحية' : `متبقي ${daysLeft} يوم`}
-                                                 </span>
-                                                 <span className="text-[10px] text-slate-400">{s.subscriptionEnd}</span>
-                                             </div>
-                                             <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-2">
-                                                 <div className={`h-full rounded-full ${!s.isActive ? 'bg-orange-500' : isExpired ? 'bg-red-500' : 'bg-emerald-500'}`} style={{width: `${isExpired ? 100 : progressPercent}%`}}></div>
-                                             </div>
-                                             <div className="flex items-center gap-2 bg-slate-800 text-white p-1.5 rounded border border-slate-700">
-                                                 <Key size={12} className="text-yellow-400"/>
-                                                 <span className="text-[10px] text-slate-400">كود التفعيل:</span>
-                                                 <code className="text-xs font-mono font-bold text-yellow-400 flex-1">{s.activationCode || 'N/A'}</code>
-                                             </div>
-                                         </div>
-
-                                         {/* 4. Actions (2 cols) */}
-                                         <div className="md:col-span-2 flex flex-col gap-2">
-                                             <div className="flex gap-1">
-                                                 <button onClick={() => handleRenew(s, 12)} className="flex-1 text-[10px] bg-indigo-50 text-indigo-700 py-1.5 rounded hover:bg-indigo-100 font-bold transition-colors">+سنة</button>
-                                                 <button onClick={() => handleRenew(s, 1)} className="flex-1 text-[10px] bg-indigo-50 text-indigo-700 py-1.5 rounded hover:bg-indigo-100 font-bold transition-colors">+شهر</button>
-                                             </div>
-                                             <div className="flex gap-2">
-                                                 <button 
-                                                    onClick={() => onUpdateSchool({...s, isActive: !s.isActive})} 
-                                                    className={`flex-1 py-1.5 rounded text-xs font-bold transition-colors ${s.isActive ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
-                                                 >
-                                                     {s.isActive ? 'تجميد' : 'تفعيل'}
-                                                 </button>
-                                                 <button onClick={() => { if(window.confirm('حذف نهائي للمدرسة وكل بياناتها؟')) onDeleteSchool(s.id) }} className="p-1.5 rounded bg-rose-50 text-rose-500 hover:bg-rose-100" title="حذف">
-                                                     <Trash2 size={16}/>
-                                                 </button>
-                                             </div>
-                                         </div>
-                                    </div>
-                                    
-                                    {/* Overlay for inactive states */}
-                                    {!s.isActive && (
-                                        <div className="absolute top-2 left-2 pointer-events-none">
-                                            <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm animate-pulse">غير مفعلة</span>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                        {schools.length === 0 && <p className="text-center text-slate-400 col-span-full py-20">لا توجد مدارس مضافة</p>}
-                    </div>
-                </section>
-            )}
-        </div>
-      </div>
-      <style>{`
-        .input-field {
-            @apply w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 transition-colors focus:ring-2 focus:ring-indigo-100;
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// --- 6. Main App Component ---
-const App: React.FC = () => {
-    // System State
-    const [firebaseConfig, setFirebaseConfig] = useState<FirebaseConfig>(() => {
-        try {
-            const saved = localStorage.getItem('sys_firebase_config');
-            return saved ? JSON.parse(saved) : { apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' };
-        } catch {
-             return { apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' };
-        }
+const SystemDashboard: React.FC<{
+    schools: SchoolMetadata[];
+    onSelectSchool: (id: string) => void;
+    onDeleteSchool: (id: string) => void;
+    onLogout: () => void;
+    pricing: PricingConfig;
+    onSavePricing: (config: PricingConfig) => void;
+}> = ({ schools, onSelectSchool, onDeleteSchool, onLogout, pricing, onSavePricing }) => {
+    const [activeTab, setActiveTab] = useState<'schools' | 'finance'>('schools');
+    const [localPricing, setLocalPricing] = useState<PricingConfig>(pricing);
+    const [paymentConfig, setPaymentConfig] = useState<PaymentSettings>({
+        bankName: '',
+        accountName: '',
+        iban: '',
+        swiftCode: '',
+        enableStripe: false,
+        stripePublicKey: '',
+        stripeSecretKey: '',
+        enableBankTransfer: true,
+        vatNumber: '',
+        vatRate: 15,
+        currency: 'SAR'
     });
+    const [isSaving, setIsSaving] = useState(false);
 
-    const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
+    // Load settings on mount
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const saved = await loadSystemData('payment_config');
+                if (saved) setPaymentConfig(saved);
+                setLocalPricing(pricing); // Sync initial pricing
+            } catch (e) { console.error('Failed to load config', e); }
+        };
+        loadSettings();
+    }, [pricing]);
+
+    const handleSavePaymentConfig = async () => {
+        setIsSaving(true);
         try {
-            const saved = localStorage.getItem('sys_schools');
-            const parsed = saved ? JSON.parse(saved) : [];
-            // Migration for old data
-            if (parsed.length > 0 && !parsed[0].plan) {
-                return parsed.map((s: any) => ({
-                    ...s, 
-                    plan: 'trial', 
-                    subscriptionEnd: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-                    licenseKey: 'MIGRATED-LEGACY',
-                    activationCode: '0000',
-                    isPaid: true
-                }));
-            }
-            return parsed.length ? parsed : [{ 
-                id: 'default', 
-                name: 'المدرسة الافتراضية', 
-                createdAt: new Date().toISOString(), 
-                isActive: true,
-                plan: 'trial',
-                subscriptionEnd: '2030-01-01',
-                licenseKey: 'FREE-TIER-DEFAULT',
-                activationCode: '1234',
-                managerPhone: '0500000000',
-                isPaid: true
-            }];
-        } catch {
-             return [{ 
-                id: 'default', 
-                name: 'المدرسة الافتراضية', 
-                createdAt: new Date().toISOString(), 
-                isActive: true,
-                plan: 'trial',
-                subscriptionEnd: '2030-01-01',
-                licenseKey: 'FREE-TIER-DEFAULT',
-                activationCode: '1234',
-                managerPhone: '0500000000',
-                isPaid: true
-             }];
+            await saveSystemData('payment_config', paymentConfig);
+            onSavePricing(localPricing); // This saves pricing via App callback
+            alert('تم حفظ كافة الإعدادات بنجاح');
+        } catch (e) {
+            alert('فشل في الحفظ');
         }
-    });
-
-    const [currentSchoolId, setCurrentSchoolId] = useState<string>(() => localStorage.getItem('sys_current_school') || 'default');
-    const [isSystemAdminOpen, setIsSystemAdminOpen] = useState(false);
-    const [isCloudConnected, setIsCloudConnected] = useState(false);
-
-    // Persist System Config Locally
-    useEffect(() => {
-        localStorage.setItem('sys_firebase_config', JSON.stringify(firebaseConfig));
-        localStorage.setItem('sys_schools', JSON.stringify(schools));
-        localStorage.setItem('sys_current_school', currentSchoolId);
-    }, [firebaseConfig, schools, currentSchoolId]);
-
-    // Initialize Cloud Connection
-    useEffect(() => {
-        if (firebaseConfig.apiKey) {
-            const success = initFirebase(firebaseConfig);
-            setIsCloudConnected(success);
-        }
-    }, [firebaseConfig]);
-
-    // --- NEW: Global System Data Synchronization ---
-    // Load Global Schools Registry from Firebase on Connect
-    useEffect(() => {
-        const syncSystem = async () => {
-            if (isCloudConnected) {
-                const cloudSchools = await loadSystemData('schools_registry');
-                if (cloudSchools && Array.isArray(cloudSchools)) {
-                    // Update local state with cloud state
-                    // Note: This simple approach assumes cloud is the source of truth when connected.
-                    setSchools(cloudSchools);
-                }
-            }
-        };
-        syncSystem();
-    }, [isCloudConnected]);
-
-    // Save Global Schools Registry to Firebase on Change
-    useEffect(() => {
-        if (isCloudConnected && schools.length > 0) {
-            const timeout = setTimeout(() => {
-                saveSystemData('schools_registry', schools);
-            }, 2000); // 2s debounce to prevent spamming
-            return () => clearTimeout(timeout);
-        }
-    }, [schools, isCloudConnected]);
-    // ------------------------------------------------
-
-    const activeSchool = schools.find(s => s.id === currentSchoolId) || schools[0];
-
-    const generateLicenseKey = () => {
-        return Array.from({length: 4}, () => Math.random().toString(36).substring(2, 6).toUpperCase()).join('-');
-    };
-
-    const generateActivationCode = () => {
-        return Math.floor(1000 + Math.random() * 9000).toString();
-    };
-
-    // Register Handler: Adds school but keeps it inactive
-    const handleRegisterNewSchool = (data: Partial<SchoolMetadata>) => {
-        const startDate = new Date();
-        const endDate = new Date(startDate);
-        
-        if (data.plan === 'trial') {
-            endDate.setDate(startDate.getDate() + 14);
-        } else if (data.plan === 'quarterly') {
-            endDate.setMonth(startDate.getMonth() + 3);
-        } else {
-            endDate.setFullYear(startDate.getFullYear() + 1);
-        }
-
-        const newSchool: SchoolMetadata = {
-            id: data.id || `sch_${Date.now()}`,
-            name: data.name || 'New School',
-            createdAt: startDate.toISOString(),
-            isActive: data.isActive || false,
-            subscriptionEnd: endDate.toISOString().split('T')[0],
-            plan: data.plan || 'trial',
-            licenseKey: generateLicenseKey(),
-            activationCode: generateActivationCode(),
-            email: data.email,
-            managerPhone: data.managerPhone || '',
-            adminUsername: data.adminUsername,
-            adminPassword: data.adminPassword,
-            isVerified: true,
-            isPaid: data.isPaid || false
-        };
-
-        setSchools(prev => [...prev, newSchool]);
-        // Note: Do NOT set current school ID yet until activated in logic
-    };
-
-    const handleActivateSchool = (id: string, code: string) => {
-        const school = schools.find(s => s.id === id);
-        if (school && school.activationCode === code) {
-            setSchools(prev => prev.map(s => s.id === id ? { ...s, isActive: true, isPaid: true } : s));
-            setCurrentSchoolId(id);
-            return true;
-        }
-        return false;
+        setIsSaving(false);
     };
 
     return (
-        <ErrorBoundary>
-            {isSystemAdminOpen ? (
-                <SystemDashboard 
-                    config={firebaseConfig}
-                    onSaveConfig={(cfg) => { setFirebaseConfig(cfg); setIsSystemAdminOpen(false); }}
-                    schools={schools}
-                    onAddSchool={(school) => {
-                        setSchools(prev => [...prev, school]);
-                        if(schools.length === 0) setCurrentSchoolId(school.id);
-                    }}
-                    onUpdateSchool={(updatedSchool) => {
-                        setSchools(prev => prev.map(s => s.id === updatedSchool.id ? updatedSchool : s));
-                    }}
-                    onDeleteSchool={(id) => {
-                        const newSchools = schools.filter(s => s.id !== id);
-                        setSchools(newSchools);
-                        if (currentSchoolId === id) setCurrentSchoolId(newSchools.length > 0 ? newSchools[0].id : '');
-                    }}
-                    onClose={() => setIsSystemAdminOpen(false)}
-                />
-            ) : (
-                <SchoolSystem 
-                    schoolId={currentSchoolId}
-                    schoolMetadata={activeSchool}
-                    onSwitchSchool={setCurrentSchoolId}
-                    onOpenSystemAdmin={() => setIsSystemAdminOpen(true)}
-                    isCloudConnected={isCloudConnected}
-                    onRegisterSchool={handleRegisterNewSchool}
-                    onActivateSchool={handleActivateSchool}
-                />
-            )}
-        </ErrorBoundary>
+        <div className="min-h-screen bg-slate-100 flex flex-col" dir="rtl">
+            <div className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
+                <div className="max-w-6xl mx-auto flex justify-between items-center">
+                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                        <UserCog className="text-indigo-400"/> لوحة تحكم النظام
+                    </h1>
+                    <button onClick={onLogout} className="text-xs bg-white/10 px-4 py-2 rounded-lg text-white font-bold hover:bg-white/20 transition-all">خروج</button>
+                </div>
+            </div>
+
+            <div className="flex flex-1 max-w-6xl mx-auto w-full p-6 gap-6">
+                {/* Sidebar */}
+                <div className="w-64 shrink-0 space-y-2">
+                    <button 
+                        onClick={() => setActiveTab('schools')}
+                        className={`w-full text-right px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-3 transition-all ${activeTab === 'schools' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-indigo-50'}`}
+                    >
+                        <School size={18}/> إدارة المدارس
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('finance')}
+                        className={`w-full text-right px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-3 transition-all ${activeTab === 'finance' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-indigo-50'}`}
+                    >
+                        <Wallet size={18}/> الإعدادات المالية
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                    {activeTab === 'schools' && (
+                        <div className="grid gap-4">
+                            {schools.map(school => (
+                                <div key={school.id} className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-center border border-slate-200 hover:border-indigo-300 transition-all">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-slate-800">{school.name}</h3>
+                                        <p className="text-[10px] text-slate-400 font-mono mt-1">ID: {school.id}</p>
+                                        <div className="flex gap-2 mt-3">
+                                            <span className={`text-[10px] px-2 py-1 rounded font-bold ${school.isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                {school.isActive ? 'نشط' : 'غير نشط'}
+                                            </span>
+                                            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold uppercase">
+                                                {school.plan}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => onSelectSchool(school.id)} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-indigo-100 transition-colors">إدارة</button>
+                                        <button onClick={() => onDeleteSchool(school.id)} className="bg-rose-50 text-rose-600 px-3 py-2 rounded-lg hover:bg-rose-100 transition-colors"><Trash2 size={16}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {schools.length === 0 && <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">لا يوجد مدارس مسجلة</div>}
+                        </div>
+                    )}
+
+                    {activeTab === 'finance' && (
+                        <div className="space-y-6">
+                            {/* Pricing Control */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
+                                    <Tag className="text-blue-600" size={20}/> تسعير الباقات
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">سعر الباقة الفصلية (3 أشهر)</label>
+                                        <div className="relative">
+                                            <input type="number" className={inputModernClass} value={localPricing.quarterly} onChange={e => setLocalPricing({...localPricing, quarterly: Number(e.target.value)})} />
+                                            <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">{localPricing.currency}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">سعر الباقة السنوية (12 شهر)</label>
+                                        <div className="relative">
+                                            <input type="number" className={inputModernClass} value={localPricing.annual} onChange={e => setLocalPricing({...localPricing, annual: Number(e.target.value)})} />
+                                            <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">{localPricing.currency}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bank Details Card */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
+                                    <Landmark className="text-emerald-600" size={20}/> بيانات التحويل البنكي
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">اسم البنك</label>
+                                        <input type="text" className={inputModernClass} placeholder="مثال: مصرف الراجحي" value={paymentConfig.bankName} onChange={e => setPaymentConfig({...paymentConfig, bankName: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">اسم المستفيد</label>
+                                        <input type="text" className={inputModernClass} placeholder="اسم صاحب الحساب" value={paymentConfig.accountName} onChange={e => setPaymentConfig({...paymentConfig, accountName: e.target.value})} />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">رقم الآيبان (IBAN)</label>
+                                        <input type="text" className={`${inputModernClass} font-mono text-left`} placeholder="SA..." value={paymentConfig.iban} onChange={e => setPaymentConfig({...paymentConfig, iban: e.target.value})} dir="ltr" />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input type="checkbox" id="enableBank" checked={paymentConfig.enableBankTransfer} onChange={e => setPaymentConfig({...paymentConfig, enableBankTransfer: e.target.checked})} className="w-4 h-4 text-emerald-600 rounded"/>
+                                    <label htmlFor="enableBank" className="text-sm font-bold text-slate-700">تفعيل خيار التحويل البنكي</label>
+                                </div>
+                            </div>
+
+                            {/* Online Payment Card */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
+                                    <CreditCard className="text-indigo-600" size={20}/> بوابة الدفع الإلكتروني (Stripe / Mada)
+                                </h3>
+                                <div className="space-y-4 mb-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">Publishable Key</label>
+                                        <div className="relative">
+                                            <input type="text" className={`${inputModernClass} pl-10 font-mono text-xs`} placeholder="pk_test_..." value={paymentConfig.stripePublicKey} onChange={e => setPaymentConfig({...paymentConfig, stripePublicKey: e.target.value})} dir="ltr"/>
+                                            <Key size={14} className="absolute left-3 top-3.5 text-slate-400"/>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">Secret Key</label>
+                                        <div className="relative">
+                                            <input type="password" className={`${inputModernClass} pl-10 font-mono text-xs`} placeholder="sk_test_..." value={paymentConfig.stripeSecretKey} onChange={e => setPaymentConfig({...paymentConfig, stripeSecretKey: e.target.value})} dir="ltr"/>
+                                            <Lock size={14} className="absolute left-3 top-3.5 text-slate-400"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                                    <div className="flex items-center gap-2">
+                                        <input type="checkbox" id="enableStripe" checked={paymentConfig.enableStripe} onChange={e => setPaymentConfig({...paymentConfig, enableStripe: e.target.checked})} className="w-4 h-4 text-indigo-600 rounded"/>
+                                        <label htmlFor="enableStripe" className="text-sm font-bold text-slate-700">تفعيل الدفع الإلكتروني</label>
+                                    </div>
+                                    <button className="text-xs bg-indigo-200 text-indigo-800 px-3 py-1 rounded hover:bg-indigo-300 font-bold" onClick={() => alert('تم التحقق من الاتصال بنجاح (محاكاة)')}>اختبار الاتصال</button>
+                                </div>
+                            </div>
+
+                            {/* Tax & Currency */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
+                                    <Percent className="text-amber-600" size={20}/> الإعدادات الضريبية
+                                </h3>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">الرقم الضريبي</label>
+                                        <input type="text" className={inputModernClass} placeholder="300..." value={paymentConfig.vatNumber} onChange={e => setPaymentConfig({...paymentConfig, vatNumber: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">نسبة الضريبة %</label>
+                                        <input type="number" className={inputModernClass} placeholder="15" value={paymentConfig.vatRate} onChange={e => setPaymentConfig({...paymentConfig, vatRate: Number(e.target.value)})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 mb-1 block">العملة</label>
+                                        <div className="relative">
+                                            <select className={`${inputModernClass} appearance-none`} value={paymentConfig.currency} onChange={e => {
+                                                setPaymentConfig({...paymentConfig, currency: e.target.value});
+                                                setLocalPricing({...localPricing, currency: e.target.value});
+                                            }}>
+                                                <option value="SAR">ريال سعودي (SAR)</option>
+                                                <option value="USD">دولار أمريكي (USD)</option>
+                                                <option value="AED">درهم إماراتي (AED)</option>
+                                            </select>
+                                            <Globe size={14} className="absolute left-3 top-3.5 text-slate-400 pointer-events-none"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Save Button */}
+                            <button 
+                                onClick={handleSavePaymentConfig}
+                                disabled={isSaving}
+                                className="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg flex items-center justify-center gap-2"
+                            >
+                                {isSaving ? <Loader2 className="animate-spin"/> : <Save size={20}/>}
+                                حفظ التغييرات المالية
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
+};
+
+const App: React.FC = () => {
+  // State for System
+  const [systemView, setSystemView] = useState<'SCHOOL' | 'SYSTEM'>('SCHOOL');
+  const [activeSchoolId, setActiveSchoolId] = useState<string | null>(localStorage.getItem('last_school_id'));
+  const [schools, setSchools] = useState<SchoolMetadata[]>(() => {
+      try {
+        const saved = localStorage.getItem('system_schools');
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) { return []; }
+  });
+  
+  // Pricing State
+  const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 100, annual: 300, currency: 'SAR' });
+
+  // Cloud State
+  const [isCloudConnected, setIsCloudConnected] = useState(false);
+
+  // Init Firebase
+  useEffect(() => {
+      const firebaseConfig: FirebaseConfig = {
+          apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo",
+          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
+          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo",
+          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo.appspot.com",
+          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123",
+          appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123:web:123"
+      };
+      const connected = initFirebase(firebaseConfig);
+      setIsCloudConnected(connected);
+  }, []);
+
+  // Sync Schools & Pricing with Cloud
+  useEffect(() => {
+     const loadData = async () => {
+         if (isCloudConnected) {
+             const cloudSchools = await loadSystemData('schools_registry');
+             if (cloudSchools && Array.isArray(cloudSchools)) {
+                 setSchools(cloudSchools);
+                 localStorage.setItem('system_schools', JSON.stringify(cloudSchools));
+             }
+             
+             // Load Pricing
+             const cloudPricing = await loadSystemData('pricing_config');
+             if (cloudPricing) {
+                 setPricing(cloudPricing);
+             }
+         }
+     };
+     loadData();
+  }, [isCloudConnected]);
+
+  // Save Pricing Wrapper
+  const handleSavePricing = async (config: PricingConfig) => {
+      setPricing(config);
+      if (isCloudConnected) {
+          await saveSystemData('pricing_config', config);
+      }
+  };
+
+  // Persist Schools
+  useEffect(() => {
+      localStorage.setItem('system_schools', JSON.stringify(schools));
+      if (isCloudConnected) {
+          saveSystemData('schools_registry', schools);
+      }
+  }, [schools, isCloudConnected]);
+
+  // Persist Active School
+  useEffect(() => {
+      if(activeSchoolId) localStorage.setItem('last_school_id', activeSchoolId);
+      else localStorage.removeItem('last_school_id');
+  }, [activeSchoolId]);
+
+
+  const handleRegisterSchool = (data: Partial<SchoolMetadata>) => {
+      const newSchool: SchoolMetadata = {
+          id: data.id || `sch_${Date.now()}`,
+          name: data.name || 'مدرسة جديدة',
+          createdAt: new Date().toISOString(),
+          isActive: true,
+          subscriptionEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
+          plan: 'trial',
+          licenseKey: `KEY-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
+          managerPhone: data.managerPhone || '',
+          adminUsername: data.adminUsername || 'admin',
+          adminPassword: data.adminPassword || '123456',
+          activationCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          isPaid: false,
+          email: data.email
+      };
+      
+      setSchools(prev => [...prev, newSchool]);
+      setActiveSchoolId(newSchool.id);
+  };
+
+  const handleUpgradeSubscription = (schoolId: string, plan: SubscriptionPlan, code: string) => {
+      // In a real app, verify code with backend.
+      const school = schools.find(s => s.id === schoolId);
+      if (!school) return false;
+
+      // Demo validation: Check against stored code or a master code
+      if (code === school.activationCode || code === 'DEMO-123') {
+           const duration = plan === 'annual' ? 365 : 90;
+           const updatedSchools = schools.map(s => {
+               if (s.id === schoolId) {
+                   return {
+                       ...s,
+                       plan: plan,
+                       subscriptionEnd: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString(),
+                       isActive: true,
+                       isPaid: true
+                   };
+               }
+               return s;
+           });
+           setSchools(updatedSchools);
+           return true;
+      }
+      return false;
+  };
+
+  const activeSchool = schools.find(s => s.id === activeSchoolId);
+
+  // If no schools exist, use a dummy default to show registration UI
+  const effectiveSchool = activeSchool || (schools.length === 0 ? {
+      id: 'default',
+      name: 'المدرسة الافتراضية',
+      createdAt: new Date().toISOString(),
+      isActive: true,
+      subscriptionEnd: new Date().toISOString(),
+      plan: 'trial',
+      licenseKey: '',
+      managerPhone: '',
+      activationCode: '',
+      isPaid: false
+  } : schools[0]);
+
+  if (systemView === 'SYSTEM') {
+      return (
+          <SystemDashboard 
+              schools={schools}
+              onSelectSchool={(id) => { setActiveSchoolId(id); setSystemView('SCHOOL'); }}
+              onDeleteSchool={(id) => { if(window.confirm('هل أنت متأكد؟')) setSchools(prev => prev.filter(s => s.id !== id)); }}
+              onLogout={() => setSystemView('SCHOOL')}
+              pricing={pricing}
+              onSavePricing={handleSavePricing}
+          />
+      );
+  }
+
+  return (
+    <ErrorBoundary>
+        <SchoolSystem 
+            schoolId={effectiveSchool.id}
+            schoolMetadata={effectiveSchool}
+            onSwitchSchool={setActiveSchoolId}
+            onOpenSystemAdmin={() => setSystemView('SYSTEM')}
+            isCloudConnected={isCloudConnected}
+            onRegisterSchool={handleRegisterSchool}
+            onUpgradeSubscription={handleUpgradeSubscription}
+            pricing={pricing}
+        />
+    </ErrorBoundary>
+  );
 };
 
 export default App;

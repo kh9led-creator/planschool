@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle, Printer, Download, CreditCard, School } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle, Printer, Download, CreditCard, School, Wallet, Copy, Upload } from 'lucide-react';
 
 interface InvoiceModalProps {
   schoolName: string;
@@ -11,74 +11,123 @@ interface InvoiceModalProps {
 }
 
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ schoolName, plan, amount, date, invoiceId, onConfirm }) => {
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer'>('card');
+  const [processing, setProcessing] = useState(false);
+
+  const handlePayment = () => {
+      setProcessing(true);
+      // Simulate API Call
+      setTimeout(() => {
+          setProcessing(false);
+          onConfirm();
+      }, 2000);
+  };
+
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg mx-auto border border-slate-100 animate-slideDown">
+    <div className="bg-white p-0 rounded-2xl shadow-xl w-full max-w-lg mx-auto border border-slate-100 animate-slideDown overflow-hidden flex flex-col max-h-[90vh]">
       {/* Header */}
-      <div className="text-center border-b border-dashed border-slate-300 pb-6 mb-6">
-        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
-            <CheckCircle size={32} />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800">تم تسجيل البيانات بنجاح</h2>
-        <p className="text-slate-500 text-sm mt-1">يرجى سداد الفاتورة للحصول على كود التفعيل</p>
+      <div className="bg-slate-900 text-white p-6 text-center shrink-0">
+        <h2 className="text-xl font-bold">إتمام عملية الدفع</h2>
+        <p className="text-slate-400 text-xs mt-1">تجديد اشتراك: {plan === 'annual' ? 'الباقة السنوية' : 'الباقة الفصلية'}</p>
       </div>
 
-      {/* Invoice Details */}
-      <div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
-        
-        <div className="flex justify-between items-center mb-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">رقم الفاتورة</span>
-            <span className="font-mono font-bold text-slate-700">#{invoiceId}</span>
-        </div>
-
-        <div className="space-y-3">
-            <div className="flex justify-between">
-                <span className="text-sm text-slate-600">المدرسة</span>
-                <span className="text-sm font-bold text-slate-800">{schoolName}</span>
+      <div className="overflow-y-auto p-6 space-y-6">
+        {/* Invoice Summary */}
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex justify-between items-center">
+            <div>
+                <p className="text-xs text-slate-500 font-bold uppercase">المبلغ المستحق</p>
+                <p className="text-2xl font-bold text-slate-800">{amount} <span className="text-sm font-medium">ريال</span></p>
             </div>
-            <div className="flex justify-between">
-                <span className="text-sm text-slate-600">الباقة المختارة</span>
-                <span className="text-sm font-bold text-slate-800 uppercase">{plan}</span>
-            </div>
-            <div className="flex justify-between">
-                <span className="text-sm text-slate-600">تاريخ الإصدار</span>
-                <span className="text-sm font-bold text-slate-800">{date}</span>
+            <div className="text-right">
+                <p className="text-xs text-slate-500 font-bold uppercase">رقم الفاتورة</p>
+                <p className="font-mono text-slate-700">{invoiceId}</p>
             </div>
         </div>
 
-        <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-center">
-            <span className="font-bold text-lg text-slate-800">الإجمالي المستحق</span>
-            <span className="font-bold text-2xl text-emerald-600">{amount} <span className="text-xs text-slate-500">ريال</span></span>
+        {/* Payment Methods Tabs */}
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button 
+                onClick={() => setPaymentMethod('card')}
+                className={`flex-1 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${paymentMethod === 'card' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+                <CreditCard size={16}/> دفع إلكتروني
+            </button>
+            <button 
+                onClick={() => setPaymentMethod('transfer')}
+                className={`flex-1 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${paymentMethod === 'transfer' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+                <Wallet size={16}/> تحويل بنكي
+            </button>
         </div>
+
+        {/* Payment Form */}
+        {paymentMethod === 'card' ? (
+            <div className="space-y-4 animate-fadeIn">
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">رقم البطاقة</label>
+                    <div className="relative">
+                        <input type="text" placeholder="0000 0000 0000 0000" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 pl-10 outline-none focus:border-indigo-500 transition-all font-mono" dir="ltr"/>
+                        <CreditCard className="absolute left-3 top-3.5 text-slate-400" size={18}/>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500">تاريخ الانتهاء</label>
+                        <input type="text" placeholder="MM/YY" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:border-indigo-500 transition-all font-mono text-center" dir="ltr"/>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500">رمز التحقق (CVC)</label>
+                        <input type="text" placeholder="123" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:border-indigo-500 transition-all font-mono text-center" dir="ltr"/>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">اسم حامل البطاقة</label>
+                    <input type="text" placeholder="الاسم كما يظهر على البطاقة" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:border-indigo-500 transition-all"/>
+                </div>
+            </div>
+        ) : (
+            <div className="space-y-4 animate-fadeIn">
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                    <h4 className="font-bold text-indigo-900 text-sm mb-2">بيانات الحساب البنكي</h4>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-indigo-700/70">البنك:</span>
+                        <span className="font-bold text-indigo-900">مصرف الراجحي</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-indigo-700/70">الآيبان:</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-indigo-900">SA00000000000000000000</span>
+                            <button className="text-indigo-500 hover:text-indigo-700"><Copy size={14}/></button>
+                        </div>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">إرفاق إيصال التحويل</label>
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Upload className="mx-auto text-slate-400 mb-2" size={24}/>
+                        <p className="text-xs text-slate-500">اضغط لرفع صورة الإيصال</p>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
 
-      {/* Payment Methods Mockup */}
-      <div className="mb-8">
-          <p className="text-xs font-bold text-slate-400 mb-2">طرق الدفع المقبولة</p>
-          <div className="flex gap-2">
-              <div className="h-8 w-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center"><CreditCard size={16} className="text-slate-400"/></div>
-              <div className="h-8 w-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center font-bold text-[10px] text-slate-400">MADA</div>
-              <div className="h-8 w-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center font-bold text-[10px] text-slate-400">VISA</div>
-          </div>
-      </div>
-
-      {/* Actions */}
-      <div className="space-y-3">
+      {/* Footer Actions */}
+      <div className="p-6 border-t border-slate-100 bg-white">
         <button 
-            onClick={onConfirm}
-            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2"
+            onClick={handlePayment}
+            disabled={processing}
+            className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-            <CreditCard size={20}/>
-            تأكيد الدفع والمتابعة
+            {processing ? (
+                <>جاري المعالجة...</>
+            ) : (
+                <>
+                    {paymentMethod === 'card' ? 'دفع آمن الآن' : 'إرسال طلب التحقق'}
+                    <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{amount} ريال</span>
+                </>
+            )}
         </button>
-        <div className="flex gap-2">
-            <button className="flex-1 py-2 text-slate-500 hover:text-indigo-600 font-bold text-xs flex items-center justify-center gap-1">
-                <Printer size={14}/> طباعة الفاتورة
-            </button>
-            <button className="flex-1 py-2 text-slate-500 hover:text-indigo-600 font-bold text-xs flex items-center justify-center gap-1">
-                <Download size={14}/> تحميل PDF
-            </button>
-        </div>
       </div>
     </div>
   );
