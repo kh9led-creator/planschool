@@ -289,6 +289,13 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // System Admin Login (Global)
+    if (username === 'kh9led' && password === '121212') {
+        onOpenSystemAdmin();
+        return;
+    }
+
+    // Default School Admin Login (For specific school dashboard)
     if (username === 'admin' && password === '123456') {
         setView(ViewState.ADMIN);
         setUsername('');
@@ -385,15 +392,6 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative font-sans">
         
-        {/* System Admin Trigger */}
-        <button 
-            onClick={onOpenSystemAdmin}
-            className="absolute top-4 left-4 text-slate-300 hover:text-slate-500 p-2 rounded-full transition-colors z-20"
-            title="إدارة النظام"
-        >
-            <UserCog size={20} />
-        </button>
-
         {/* Top Right Controls */}
         <div className="absolute top-4 right-4 z-20 flex gap-4 items-center">
            {isCloudConnected ? (
