@@ -3,7 +3,7 @@ import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, Archiv
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
 import AttendanceReportTemplate from './AttendanceReportTemplate';
 import InvoiceModal from './InvoiceModal';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2, AlertTriangle, FileArchive, Link } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2, AlertTriangle, FileArchive, Link as LinkIcon } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 import { sendActivationEmail } from '../services/emailService';
 import * as XLSX from 'xlsx';
@@ -452,12 +452,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
             </div>
         )}
-
-        {/* ... (STUDENTS TAB code is unchanged but kept for context) ... */}
+        
+        {/* ... (STUDENTS TAB) ... */}
         {activeTab === 'students' && (
              <div className="space-y-6 animate-fadeIn">
-                {/* ... existing students content ... */}
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 shadow-xl text-white relative overflow-hidden">
+                 {/* ... content ... */}
+                 {/* (Included in previous response, keeping it brief here to focus on requested changes) */}
+                 <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-8 shadow-xl text-white relative overflow-hidden">
                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
                         <div>
                             <h2 className="text-3xl font-extrabold mb-2">الطلاب</h2>
@@ -498,7 +499,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
              </div>
         )}
 
-        {/* ... (Setup, Classes, Messages tabs) ... */}
+        {/* ... (Classes, Plan, Attendance, Messages, Archive tabs remain same) ... */}
         {activeTab === 'classes' && <div className="space-y-6 animate-fadeIn"><div className="grid grid-cols-1 lg:grid-cols-3 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-1"><h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800"><Grid className="text-indigo-500"/> إضافة فصل جديد</h2><div className="space-y-4"><div><label className={labelModernClass}>اسم الفصل (الشعبة)</label><input type="text" placeholder="مثال: أول - أ" className={inputModernClass} value={newClassName} onChange={(e) => setNewClassName(e.target.value)}/></div><div><label className={labelModernClass}>الصف الدراسي</label><input type="text" placeholder="مثال: الصف الأول" className={inputModernClass} value={newClassGrade} onChange={(e) => setNewClassGrade(e.target.value)}/></div><button onClick={handleAddClass} className={`${btnPrimaryClass} w-full py-3`}><Plus size={18} /> إنشاء الفصل</button></div></div><div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">{activeClass ? (<>
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800"><BookOpen className="text-indigo-500"/> الجدول الدراسي: <span className="text-indigo-600 bg-indigo-50 px-2 py-1 rounded text-base">{activeClass.name}</span></h2>
@@ -506,17 +507,125 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
             <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full text-center text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3 border-b">اليوم</th>{[1,2,3,4,5,6,7].map(p => <th key={p} className="p-3 border-b border-r border-slate-200">الحصة {p}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{DAYS_OF_WEEK.map((day, dIndex) => (<tr key={dIndex} className="hover:bg-slate-50/50"><td className="p-3 font-bold text-slate-600 bg-slate-50/30">{day}</td>{[1,2,3,4,5,6,7].map(period => { const slot = schedule.find(s => s.classId === selectedClassId && s.dayIndex === dIndex && s.period === period); const subject = subjects.find(s => s.id === slot?.subjectId); const teacher = teachers.find(t => t.id === slot?.teacherId); return (<td key={period} onClick={() => openScheduleEdit(dIndex, period)} className={`p-2 border-r border-slate-100 cursor-pointer transition-all hover:brightness-95 ${subject ? subject.color.replace('text-', 'bg-opacity-20 text-') : 'hover:bg-indigo-50'}`}>{slot ? (<div className={`rounded-lg p-1 ${subject?.color} bg-opacity-10 border`}><span className="font-bold block text-xs">{subject?.name}</span><span className="text-[10px] opacity-80 block mt-0.5">{teacher?.name}</span></div>) : (<div className="w-full h-8 rounded-lg border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-300 hover:border-indigo-300 hover:text-indigo-300"><Plus size={14}/></div>)}</td>); })}</tr>))}</tbody></table></div></>) : (<div className="text-center py-20"><AlertCircle className="mx-auto mb-3 text-slate-300" size={40}/><p className="text-slate-500 font-medium">الرجاء اختيار أو إضافة فصل للبدء</p></div>)}</div></div>{editingSlot && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl w-full max-w-sm animate-slideDown shadow-2xl"><div className="flex justify-between items-center mb-6"><h3 className="font-bold text-lg text-slate-800">تعديل الحصة {editingSlot.period}</h3><button onClick={() => setEditingSlot(null)} className="text-slate-400 hover:text-rose-500"><X size={20}/></button></div><div className="space-y-4"><div><label className={labelModernClass}>المادة الدراسية</label><select className={inputModernClass} value={scheduleForm.subjectId} onChange={(e) => setScheduleForm({...scheduleForm, subjectId: e.target.value})}><option value="">-- اختر المادة --</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div><div><label className={labelModernClass}>المعلم المسؤول</label><select className={inputModernClass} value={scheduleForm.teacherId} onChange={(e) => setScheduleForm({...scheduleForm, teacherId: e.target.value})}><option value="">-- اختر المعلم --</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div><button onClick={saveScheduleSlot} className={`${btnPrimaryClass} w-full py-3 mt-4`}>حفظ التغييرات</button></div></div></div>)}</div>}
         {activeTab === 'plan' && <div className="animate-fadeIn">{activeClass ? (<><div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center no-print gap-4"><div className="flex items-center gap-3"><div className="bg-indigo-100 p-2 rounded-lg text-indigo-700"><FileText size={24}/></div><div><h2 className="text-xl font-bold text-slate-800">معاينة الخطة</h2><p className="text-xs text-slate-500">جاهزة للطباعة (A4)</p></div></div><div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-100"><button onClick={() => setPrintMode('master')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${printMode === 'master' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Copy size={14}/> نسخة عامة</button><button onClick={() => setPrintMode('students')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${printMode === 'students' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><User size={14}/> نسخ للطلاب ({classStudents.length})</button></div><div className="flex flex-wrap gap-2 justify-center"><button onClick={onClearPlans} className={`${btnSecondaryClass} text-rose-600 bg-rose-50 hover:bg-rose-100`}><Eraser size={18} /><span>تفريغ</span></button><button onClick={handleArchiveClick} className={`${btnSecondaryClass} text-amber-600 bg-amber-50 hover:bg-amber-100`}><Archive size={18} /><span>أرشفة</span></button><button onClick={handlePrint} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl hover:bg-slate-900 flex items-center gap-2 font-bold shadow-lg shadow-slate-300 transition-all"><Printer size={18} /><span>طباعة</span></button></div></div><div className="mx-auto rounded-none print:shadow-none">{printMode === 'master' ? (<div className="bg-white shadow-2xl print:shadow-none page-container"><WeeklyPlanTemplate classGroup={activeClass} weekInfo={weekInfo} schedule={schedule.filter(s => s.classId === selectedClassId)} planEntries={planEntries.filter(e => e.classId === selectedClassId)} schoolSettings={schoolSettings} subjects={subjects} onUpdateSettings={setSchoolSettings}/></div>) : (<div>{classStudents.length === 0 ? (<div className="bg-orange-50 p-6 rounded-xl border border-orange-100 text-center text-orange-600 font-bold">لا يوجد طلاب مسجلين في هذا الفصل لطباعة نسخ لهم.</div>) : (classStudents.map((student, index) => (<div key={student.id} className="mb-8 print:mb-0 bg-white shadow-2xl print:shadow-none page-container"><WeeklyPlanTemplate classGroup={activeClass} weekInfo={weekInfo} schedule={schedule.filter(s => s.classId === selectedClassId)} planEntries={planEntries.filter(e => e.classId === selectedClassId)} schoolSettings={schoolSettings} subjects={subjects} onUpdateSettings={setSchoolSettings} studentName={student.name}/></div>)))}</div>)}</div></>) : (<div className="text-center py-20 bg-white rounded-2xl shadow border border-slate-100"><AlertCircle className="mx-auto mb-4 text-slate-200" size={48}/><h3 className="text-xl font-bold text-slate-400">لا يوجد بيانات للعرض</h3></div>)}</div>}
-        
-        {/* ... (Remaining tabs attendance, messages, archive, setup...) ... */}
         {activeTab === 'attendance' && <div className="animate-fadeIn space-y-6"><div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center gap-4"><div className="flex items-center gap-3"><div className="bg-indigo-100 p-2.5 rounded-xl text-indigo-600"><Calendar size={20} /></div><div><label className={labelModernClass}>تاريخ اليوم</label><input type="date" className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)}/></div></div><div className="h-10 w-px bg-slate-200 mx-2 hidden md:block"></div><div className="flex-1"><h2 className="font-bold text-lg text-slate-800">سجل الحضور والغياب</h2><p className="text-xs text-slate-500">متابعة الغياب اليومي وطباعة الكشوفات</p></div><button onClick={handleArchiveDailyAttendance} className="bg-amber-100 text-amber-700 hover:bg-amber-200 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"><Archive size={16}/> أرشفة السجل اليومي</button></div><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{classes.length === 0 ? (<div className="col-span-full py-12 text-center text-slate-400"><Users size={48} className="mx-auto mb-3 opacity-50"/><p>لا يوجد فصول لعرضها</p></div>) : (classes.map(cls => { const absentStudents = students.filter(s => s.classId === cls.id && attendanceRecords.some(r => r.studentId === s.id && r.date === attendanceDate && r.status === 'absent')); const totalStudents = students.filter(s => s.classId === cls.id).length; const hasAbsence = absentStudents.length > 0; return (<div key={cls.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group"><div className="p-5 border-b border-slate-100 flex justify-between items-start"><div><h3 className="font-bold text-lg text-slate-800">{cls.name}</h3><p className="text-xs text-slate-400 mt-1">{totalStudents} طالب مسجل</p></div><div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${hasAbsence ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>{hasAbsence ? (<><XCircle size={14}/> {absentStudents.length} غياب</>) : (<><CheckCircle size={14}/> حضور كامل</>)}</div></div><div className="p-5 bg-slate-50/50 h-32 overflow-hidden relative">{hasAbsence ? (<ul className="space-y-2">{absentStudents.slice(0, 3).map(s => (<li key={s.id} className="flex items-center gap-2 text-sm text-slate-600"><div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>{s.name}</li>))}{absentStudents.length > 3 && (<li className="text-xs text-slate-400 italic pr-4">+ {absentStudents.length - 3} آخرين...</li>)}</ul>) : (<div className="h-full flex flex-col items-center justify-center text-slate-300"><CheckCircle size={32} className="mb-2 opacity-50"/><span className="text-xs">لم يتم تسجيل غياب</span></div>)}</div><div className="p-4 bg-white border-t border-slate-100"><button onClick={() => setPrintAttendanceClass(cls)} className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all flex items-center justify-center gap-2"><Printer size={16}/> طباعة كشف الغياب</button></div></div>); }))}</div>{printAttendanceClass && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 overflow-hidden"><div className="bg-white w-full max-w-4xl h-[95vh] rounded-2xl flex flex-col shadow-2xl animate-slideDown overflow-hidden"><div className="bg-slate-800 text-white p-4 flex justify-between items-center shrink-0"><div><h3 className="font-bold text-lg flex items-center gap-2"><Printer size={20} className="text-emerald-400"/> كشف الغياب: {printAttendanceClass.name}</h3><p className="text-xs text-slate-400 mt-0.5">{attendanceDate}</p></div><div className="flex items-center gap-3"><button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2"><Printer size={14}/> طباعة</button><button onClick={() => setPrintAttendanceClass(null)} className="bg-rose-500 hover:bg-rose-600 p-2 rounded-full transition-colors"><X size={18}/></button></div></div><div className="flex-1 overflow-auto bg-slate-100 p-8 flex justify-center"><div className="origin-top scale-[0.85] md:scale-100 transition-transform"><AttendanceReportTemplate schoolSettings={schoolSettings} classGroup={printAttendanceClass} teacherName="إدارة النظام / وكيل شؤون الطلاب" date={attendanceDate} absentStudents={students.filter(s => s.classId === printAttendanceClass.id && attendanceRecords.some(r => r.studentId === s.id && r.date === attendanceDate && r.status === 'absent'))}/></div></div></div></div>)}</div>}
-        
-        {/* ... MESSAGES TAB ... */}
         {activeTab === 'messages' && <div className="animate-fadeIn h-[calc(100vh-200px)] min-h-[500px]"><div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden h-full flex flex-col md:flex-row"><div className="w-full md:w-80 border-l border-slate-100 bg-slate-50 flex flex-col"><div className="p-4 border-b border-slate-200 bg-white"><h3 className="font-bold text-slate-800 mb-1">المحادثات</h3><p className="text-xs text-slate-500">اختر معلماً للمراسلة</p></div><div className="flex-1 overflow-y-auto"><button onClick={() => setMsgFilter('all')} className={`w-full p-4 flex items-center gap-3 border-b border-slate-100 transition-colors hover:bg-white ${msgFilter === 'all' ? 'bg-white border-r-4 border-r-indigo-500 shadow-sm' : ''}`}><div className="bg-amber-100 p-2.5 rounded-full text-amber-600"><Bell size={20}/></div><div className="text-right"><p className="font-bold text-sm text-slate-800">تعميم للجميع</p><p className="text-[10px] text-slate-400">إرسال إعلانات عامة</p></div></button>{teachers.map(t => (<button key={t.id} onClick={() => setMsgFilter(t.id)} className={`w-full p-4 flex items-center gap-3 border-b border-slate-100 transition-colors hover:bg-white ${msgFilter === t.id ? 'bg-white border-r-4 border-r-indigo-500 shadow-sm' : ''}`}><div className="bg-indigo-100 p-2.5 rounded-full text-indigo-600 font-bold text-xs">{t.name.charAt(0)}</div><div className="text-right overflow-hidden"><p className="font-bold text-sm text-slate-800 truncate">{t.name}</p><p className="text-[10px] text-slate-400">@{t.username}</p></div></button>))}</div></div><div className="flex-1 flex flex-col bg-white relative"><div className="p-4 border-b border-slate-100 bg-white/80 backdrop-blur flex justify-between items-center shadow-sm z-10"><div className="flex items-center gap-3">{msgFilter === 'all' ? (<><div className="bg-amber-500 p-2 rounded-lg text-white"><Bell size={20}/></div><div><h3 className="font-bold text-slate-800">تعميم لجميع المعلمين</h3><p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={10}/> نشط</p></div></>) : (<><div className="bg-indigo-600 p-2 rounded-lg text-white"><UserCheck size={20}/></div><div><h3 className="font-bold text-slate-800">{teachers.find(t => t.id === msgFilter)?.name}</h3><p className="text-xs text-slate-500">محادثة مباشرة</p></div></>)}</div></div><div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">{getFilteredMessages().length === 0 ? (<div className="text-center py-20 opacity-50"><MessageSquare size={48} className="mx-auto mb-2 text-slate-300"/><p className="text-slate-400">ابدأ المحادثة بإرسال رسالة</p></div>) : (getFilteredMessages().map(msg => { const isMe = msg.senderId === 'admin'; return (<div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[70%] rounded-2xl p-4 shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tl-none' : 'bg-white text-slate-800 border border-slate-100 rounded-tr-none'}`}>{!isMe && <p className="text-[10px] font-bold text-indigo-600 mb-1">{msg.senderName}</p>}<p className="text-sm leading-relaxed">{msg.content}</p><p className={`text-[10px] mt-2 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{msg.timestamp}</p></div></div>); }))}<div ref={messagesEndRef} /></div><div className="p-4 border-t border-slate-100 bg-white"><div className="flex gap-3"><input type="text" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" placeholder="اكتب رسالتك هنا..." value={newMessageText} onChange={(e) => setNewMessageText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdminSendMessage()} /><button onClick={handleAdminSendMessage} className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"><Send size={20}/></button></div></div></div></div></div>}
 
-        {/* ... (Archive and Subscription Modals - No changes) ... */}
+        {activeTab === 'setup' && (
+             <div className="animate-fadeIn space-y-6">
+                
+                {/* School Link Card - NEW */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                        <LinkIcon className="text-indigo-500" /> رابط الدخول المباشر للمدرسة
+                    </h3>
+                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex-1 bg-white border border-indigo-200 rounded-lg p-3 font-mono text-sm text-slate-600 text-left dir-ltr select-all">
+                                {window.location.origin}?school={schoolId}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}?school=${schoolId}`);
+                                    alert('تم نسخ الرابط بنجاح');
+                                }}
+                                className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                title="نسخ الرابط"
+                            >
+                                <Copy size={20} />
+                            </button>
+                        </div>
+                        <p className="text-xs text-indigo-500 mt-3 font-medium">
+                            هذا الرابط خاص بمدرستكم. شاركه مع المعلمين والإداريين للدخول المباشر دون الحاجة للبحث عن المدرسة.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Existing Setup Content */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Settings className="text-indigo-500"/> بيانات المدرسة</h3>
+                        <div className="space-y-4">
+                            <div><label className={labelModernClass}>اسم المدرسة</label><input type="text" className={inputModernClass} value={schoolSettings.schoolName} onChange={(e) => setSchoolSettings({...schoolSettings, schoolName: e.target.value})} /></div>
+                            <div><label className={labelModernClass}>الإدارة التعليمية</label><input type="text" className={inputModernClass} value={schoolSettings.directorateName} onChange={(e) => setSchoolSettings({...schoolSettings, directorateName: e.target.value})} /></div>
+                            <button onClick={handleManualSaveSettings} className={`${btnPrimaryClass} w-full py-3 mt-4`}>{saveSuccess ? <><CheckCircle size={20}/> تم الحفظ!</> : <><Save size={20}/> حفظ الإعدادات</>}</button>
+                        </div>
+                    </div>
+                    {/* Subscription & Teachers Management */}
+                    <div className="space-y-6">
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Key className="text-amber-500"/> حالة الاشتراك</h3>
+                             <div className={`p-4 rounded-xl mb-4 ${isExpired ? 'bg-rose-50 border border-rose-100 text-rose-700' : 'bg-emerald-50 border border-emerald-100 text-emerald-700'}`}>
+                                 <p className="font-bold text-sm mb-1">{isExpired ? 'الاشتراك منتهي' : 'الاشتراك نشط'}</p>
+                                 <p className="text-xs opacity-80">ينتهي في: {new Date(schoolMetadata?.subscriptionEnd || '').toLocaleDateString('ar-SA')}</p>
+                             </div>
+                             {!isExpired ? (
+                                 <div className="grid grid-cols-2 gap-3">
+                                     <button onClick={() => handleRenewClick('quarterly')} className="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all">تجديد (فصلي)</button>
+                                     <button onClick={() => handleRenewClick('annual')} className="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all">تجديد (سنوي)</button>
+                                 </div>
+                             ) : (
+                                 <button onClick={() => handleRenewClick('annual')} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-200 animate-pulse">تجديد الاشتراك الآن واستعادة الخدمة</button>
+                             )}
+                        </div>
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><UserCheck className="text-indigo-500"/> إدارة المعلمين</h3>
+                             <div className="space-y-4">
+                                <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                                    <h4 className="font-bold text-sm text-indigo-900 mb-2">إضافة معلم جديد</h4>
+                                    <div className="space-y-2">
+                                        <input type="text" placeholder="الاسم الرباعي" className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" value={teacherForm.name} onChange={(e) => setTeacherForm({...teacherForm, name: e.target.value})} />
+                                        <div className="flex gap-2">
+                                            <input type="text" placeholder="اسم المستخدم" className="w-1/2 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" value={teacherForm.username} onChange={(e) => setTeacherForm({...teacherForm, username: e.target.value})} />
+                                            <input type="text" placeholder="كلمة المرور" className="w-1/2 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" value={teacherForm.password} onChange={(e) => setTeacherForm({...teacherForm, password: e.target.value})} />
+                                        </div>
+                                        <button onClick={handleCreateTeacher} className="w-full bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors">إضافة المعلم</button>
+                                    </div>
+                                </div>
+                                <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                    {teachers.length === 0 ? <p className="text-center text-xs text-slate-400 py-4">لا يوجد معلمين مسجلين</p> : teachers.map(t => (
+                                        <div key={t.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100 group hover:border-indigo-200 transition-colors">
+                                            {editingTeacherId === t.id ? (
+                                                <div className="flex-1 flex gap-2">
+                                                     <input value={teacherEditForm.name} onChange={e => setTeacherEditForm({...teacherEditForm, name: e.target.value})} className="w-1/3 text-xs p-1 border rounded"/>
+                                                     <input value={teacherEditForm.username} onChange={e => setTeacherEditForm({...teacherEditForm, username: e.target.value})} className="w-1/4 text-xs p-1 border rounded"/>
+                                                     <input value={teacherEditForm.password} onChange={e => setTeacherEditForm({...teacherEditForm, password: e.target.value})} placeholder="Pass" className="w-1/4 text-xs p-1 border rounded"/>
+                                                     <button onClick={saveEditTeacher} className="text-green-600"><Save size={14}/></button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-700">{t.name}</p>
+                                                        <p className="text-[10px] text-slate-400">@{t.username} | {t.password}</p>
+                                                    </div>
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => startEditTeacher(t)} className="p-1 text-slate-400 hover:text-indigo-600"><Edit2 size={14}/></button>
+                                                        <button onClick={() => handleDeleteTeacher(t.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 mt-8">
+                    <h3 className="font-bold text-lg text-rose-700 mb-2 flex items-center gap-2"><AlertTriangle size={20}/> منطقة الخطر</h3>
+                    <p className="text-xs text-rose-600 mb-4">الإجراءات التالية لا يمكن التراجع عنها. يرجى الحذر.</p>
+                    <button onClick={handleResetSchoolData} className="bg-white border border-rose-200 text-rose-600 px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
+                        <Trash2 size={16}/> إعادة تعيين بيانات المدرسة (حذف الكل)
+                    </button>
+                </div>
+             </div>
+        )}
+
+        {/* ... (Archive and Subscription Modals) ... */}
         {activeTab === 'archive' && (
              <div className="animate-fadeIn">
-                 {/* Archive Sub-Navigation */}
+                 {/* ... content ... */}
+                 {/* (Included in previous response, keeping it brief here to focus on requested changes) */}
                  <div className="flex justify-center mb-8">
                      <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100 inline-flex">
                          <button 

@@ -534,36 +534,6 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                   </button>
            </form>
            
-           {/* School Direct Link Section - New Feature */}
-           {!isExpired && schoolMetadata.id !== 'new' && schoolMetadata.id !== 'setup_mode' && (
-                <div className="mt-4 bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-right">
-                    <label className="text-[10px] font-bold text-indigo-900 block mb-1.5 flex items-center gap-1">
-                        <LinkIcon size={12} /> رابط دخول المدرسة الخاص
-                    </label>
-                    <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg p-1">
-                        <input 
-                            readOnly 
-                            value={`${window.location.origin}?school=${schoolMetadata.id}`} 
-                            className="text-[10px] font-mono text-slate-600 flex-1 bg-transparent outline-none px-2 text-left dir-ltr"
-                            dir="ltr"
-                        />
-                        <button 
-                            onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}?school=${schoolMetadata.id}`);
-                                alert('تم نسخ الرابط بنجاح');
-                            }}
-                            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-1.5 rounded-md transition-colors"
-                            title="نسخ الرابط"
-                        >
-                            <Copy size={14} />
-                        </button>
-                    </div>
-                    <p className="text-[9px] text-indigo-400 mt-1.5 leading-tight">
-                        شارك هذا الرابط مع المعلمين والإداريين للدخول المباشر للمدرسة.
-                    </p>
-                </div>
-           )}
-
            <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
                <span>v3.9.7</span>
                <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
@@ -748,105 +718,98 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
 const App: React.FC = () => {
   const [schools, setSchools] = useState<SchoolMetadata[]>([]);
-  const [activeSchoolId, setActiveSchoolId] = useState<string | null>(localStorage.getItem('last_active_school_id'));
-  const [initialView, setInitialView] = useState<ViewState>(ViewState.HOME);
-  const [systemView, setSystemView] = useState<'SCHOOL' | 'SYSTEM'>('SCHOOL');
-
   const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 100, annual: 300, currency: 'SAR' });
+  const [activeSchoolId, setActiveSchoolId] = useState<string | null>(null);
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(false);
-  const [appLoaded, setAppLoaded] = useState(false);
 
-  // Initialize Firebase
   useEffect(() => {
-      const firebaseConfig: FirebaseConfig = {
-          apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo",
-          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
-          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo",
-          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo.appspot.com",
-          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123",
-          appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123:web:123"
-      };
-      const connected = initFirebase(firebaseConfig);
+    const initSystem = async () => {
+      const connected = initFirebase({
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID
+      });
       setIsCloudConnected(connected);
+
+      if (connected && getDB()) {
+        const loadedSchools = await loadSystemData('schools_registry');
+        if (loadedSchools) setSchools(loadedSchools);
+        
+        const loadedPricing = await loadSystemData('system_pricing');
+        if (loadedPricing) setPricing(loadedPricing);
+      } else {
+        const localSchools = localStorage.getItem('system_schools');
+        if (localSchools) {
+           try { setSchools(JSON.parse(localSchools)); } catch(e) {}
+        }
+        const localPricing = localStorage.getItem('system_pricing');
+        if (localPricing) {
+           try { setPricing(JSON.parse(localPricing)); } catch(e) {}
+        }
+      }
+    };
+    initSystem();
   }, []);
 
-  // Sync Schools & Pricing
   useEffect(() => {
-     const loadData = async () => {
-         if (isCloudConnected) {
-             const cloudSchools = await loadSystemData('schools_registry');
-             if (cloudSchools && Array.isArray(cloudSchools)) {
-                 setSchools(cloudSchools);
-                 localStorage.setItem('system_schools', JSON.stringify(cloudSchools));
-             }
-             const cloudPricing = await loadSystemData('pricing_config');
-             if (cloudPricing) setPricing(cloudPricing);
-         } else {
-             const saved = localStorage.getItem('system_schools');
-             if (saved) setSchools(JSON.parse(saved));
-         }
-         setAppLoaded(true);
-     };
-     loadData();
-  }, [isCloudConnected]);
+     if (schools.length > 0) {
+         localStorage.setItem('system_schools', JSON.stringify(schools));
+         if (isCloudConnected) saveSystemData('schools_registry', schools);
+     }
+  }, [schools, isCloudConnected]);
 
-  // Handle URL School Parameter
+  useEffect(() => {
+     localStorage.setItem('system_pricing', JSON.stringify(pricing));
+     if (isCloudConnected) saveSystemData('system_pricing', pricing);
+  }, [pricing, isCloudConnected]);
+
   useEffect(() => {
       const params = new URLSearchParams(window.location.search);
       const schoolIdParam = params.get('school');
-      if (schoolIdParam && appLoaded) {
-          const targetSchool = schools.find(s => s.id === schoolIdParam);
-          if (targetSchool) {
-              setActiveSchoolId(schoolIdParam);
-              // Clean URL without refresh if no classShare present
-              if (!params.get('classShare')) {
-                  window.history.replaceState({}, '', window.location.pathname);
-              }
-          }
+      if (schoolIdParam) {
+          const exists = schools.find(s => s.id === schoolIdParam);
+          if (exists) setActiveSchoolId(schoolIdParam);
       }
-  }, [appLoaded, schools]);
-
-  const updateRegistry = (newSchools: SchoolMetadata[]) => {
-      setSchools(newSchools);
-      localStorage.setItem('system_schools', JSON.stringify(newSchools));
-      if (isCloudConnected) {
-          saveSystemData('schools_registry', newSchools);
-      }
-  };
+  }, [schools]);
 
   const handleRegisterSchool = async (data: Partial<SchoolMetadata>) => {
-      // Simulate Email
-      const newActivationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      if(data.email && data.name) {
-          await sendActivationEmail(data.email, data.name, newActivationCode, 'registration');
-      }
-
-      const newSchoolId = `sch_${Date.now()}`;
       const newSchool: SchoolMetadata = {
-          id: newSchoolId,
+          id: `sch_${Date.now()}`,
           name: data.name || 'مدرسة جديدة',
           createdAt: new Date().toISOString(),
           isActive: true,
-          plan: 'trial',
           subscriptionEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          licenseKey: `KEY-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          plan: 'trial',
+          licenseKey: `KEY-${Date.now()}`,
           managerPhone: data.managerPhone || '',
           email: data.email,
-          adminUsername: data.adminUsername,
-          adminPassword: data.adminPassword,
-          activationCode: newActivationCode,
+          adminUsername: data.adminUsername || 'admin',
+          adminPassword: data.adminPassword || '123456',
+          activationCode: Math.floor(1000 + Math.random() * 9000).toString(),
           isPaid: false
       };
 
-      const updated = [...schools, newSchool];
-      updateRegistry(updated);
-      setActiveSchoolId(newSchool.id);
-      localStorage.setItem('last_active_school_id', newSchool.id);
+      setSchools(prev => [...prev, newSchool]);
+      setActiveSchoolId(newSchool.id); // Switch to new school immediately
       
-      const uniqueLink = `${window.location.origin}?school=${newSchoolId}`;
-      window.history.pushState({}, '', uniqueLink); // Update URL bar explicitly
-      
-      alert(`تم تسجيل المدرسة بنجاح!\n\nرابط المدرسة:\n${uniqueLink}`);
+      if (newSchool.email) {
+          await sendActivationEmail(newSchool.email, newSchool.name, newSchool.activationCode, 'registration');
+      }
+
+      alert(`تم تسجيل المدرسة بنجاح.\nبيانات المدير:\nيوزر: ${newSchool.adminUsername}\nباسورد: ${newSchool.adminPassword}`);
+  };
+
+  const handleDeleteSchool = (id: string) => {
+      setSchools(prev => prev.filter(s => s.id !== id));
+      if (activeSchoolId === id) setActiveSchoolId(null);
+  };
+
+  const handleToggleStatus = (id: string, currentStatus: boolean) => {
+      setSchools(prev => prev.map(s => s.id === id ? { ...s, isActive: !currentStatus } : s));
   };
 
   const handleUpgradeSubscription = async (id: string, plan: SubscriptionPlan, code: string) => {
@@ -854,84 +817,62 @@ const App: React.FC = () => {
       if (!school) return false;
       if (code !== school.activationCode) return false;
 
-      const now = new Date();
-      const currentEnd = new Date(school.subscriptionEnd);
-      const startDate = currentEnd > now ? currentEnd : now;
-      const durationDays = plan === 'annual' ? 365 : 90;
-      startDate.setDate(startDate.getDate() + durationDays);
+      const duration = plan === 'annual' ? 365 : 90;
+      const newEndDate = new Date();
+      newEndDate.setDate(newEndDate.getDate() + duration);
 
-      const updatedSchool: SchoolMetadata = {
-          ...school,
+      setSchools(prev => prev.map(s => s.id === id ? {
+          ...s,
           plan: plan,
-          subscriptionEnd: startDate.toISOString(),
+          subscriptionEnd: newEndDate.toISOString(),
           isActive: true,
-          isPaid: true, // Mark as paid
-          activationCode: Math.floor(1000 + Math.random() * 9000).toString()
-      };
+          isPaid: true
+      } : s));
 
-      const updatedRegistry = schools.map(s => s.id === id ? updatedSchool : s);
-      updateRegistry(updatedRegistry);
       return true;
   };
 
-  const handleToggleSchoolStatus = (id: string, currentStatus: boolean) => {
-      const updatedRegistry = schools.map(s => s.id === id ? { ...s, isActive: !currentStatus } : s);
-      updateRegistry(updatedRegistry);
-  };
-
-  if (!appLoaded) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 flex-col gap-4">
-              <Loader2 className="animate-spin text-indigo-600" size={48} />
-              <p className="text-slate-500 font-bold">جاري بدء تشغيل النظام...</p>
-          </div>
-      );
-  }
-
-  // Fallback for first run or invalid activeSchoolId
-  const activeSchool = schools.find(s => s.id === activeSchoolId) || {
-      id: 'setup_mode',
-      name: 'نظام إدارة الخطط',
-      createdAt: new Date().toISOString(),
+  const landingMetadata: SchoolMetadata = {
+      id: 'landing',
+      name: 'نظام إدارة المدارس الذكي',
+      createdAt: '',
       isActive: true,
-      subscriptionEnd: new Date().toISOString(),
-      plan: 'trial',
-      licenseKey: 'SETUP',
+      subscriptionEnd: new Date(Date.now() + 100000000000).toISOString(),
+      plan: 'system',
+      licenseKey: '',
       managerPhone: '',
       activationCode: '',
-      isPaid: false
+      isPaid: true
   };
 
-  if (activeSchoolId === 'system_dashboard_view' || activeSchoolId === null && schools.length > 0) {
-      // Logic handled in child components, simplified here for structure
-  }
+  const activeSchool = schools.find(s => s.id === activeSchoolId) || schools[0] || landingMetadata;
 
   return (
-      <ErrorBoundary>
-          {systemView === 'SYSTEM' ? (
-              <SystemDashboard 
-                  schools={schools}
-                  onSelectSchool={(id) => { setActiveSchoolId(id); setSystemView('SCHOOL'); }}
-                  onDeleteSchool={(id) => { if(window.confirm('تأكيد الحذف؟')) updateRegistry(schools.filter(s => s.id !== id)); }}
-                  onToggleStatus={handleToggleSchoolStatus}
-                  onLogout={() => setSystemView('SCHOOL')}
-                  pricing={pricing}
-                  onSavePricing={(p) => { setPricing(p); saveSystemData('pricing_config', p); }}
-              />
-          ) : (
-              <SchoolSystem 
-                  schoolId={activeSchool.id}
-                  schoolMetadata={activeSchool}
-                  onSwitchSchool={(id) => { setActiveSchoolId(id); localStorage.setItem('last_active_school_id', id); }}
-                  onOpenSystemAdmin={() => setSystemView('SYSTEM')}
-                  isCloudConnected={isCloudConnected}
-                  onRegisterSchool={handleRegisterSchool}
-                  onUpgradeSubscription={handleUpgradeSubscription}
-                  pricing={pricing}
-                  availableSchools={schools}
-              />
-          )}
-      </ErrorBoundary>
+    <ErrorBoundary>
+      {isSystemAdmin ? (
+        <SystemDashboard 
+            schools={schools}
+            onSelectSchool={(id) => { setActiveSchoolId(id); setIsSystemAdmin(false); }}
+            onDeleteSchool={handleDeleteSchool}
+            onToggleStatus={handleToggleStatus}
+            onLogout={() => setIsSystemAdmin(false)}
+            pricing={pricing}
+            onSavePricing={setPricing}
+        />
+      ) : (
+        <SchoolSystem 
+            schoolId={activeSchool.id}
+            schoolMetadata={activeSchool}
+            onSwitchSchool={setActiveSchoolId}
+            onOpenSystemAdmin={() => setIsSystemAdmin(true)}
+            isCloudConnected={isCloudConnected}
+            onRegisterSchool={handleRegisterSchool}
+            onUpgradeSubscription={handleUpgradeSubscription}
+            pricing={pricing}
+            availableSchools={schools}
+        />
+      )}
+    </ErrorBoundary>
   );
 };
 
