@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar } from 'lucide-react';
+import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar, Power } from 'lucide-react';
 import { SchoolSettings, PricingConfig } from '../types';
 import { saveSystemData, loadSystemData } from '../services/firebase';
 
@@ -41,6 +41,7 @@ interface SystemDashboardProps {
     schools: SchoolMetadata[];
     onSelectSchool: (id: string) => void;
     onDeleteSchool: (id: string) => void;
+    onToggleStatus: (id: string, currentStatus: boolean) => void; // New Prop
     onLogout: () => void;
     pricing: PricingConfig;
     onSavePricing: (config: PricingConfig) => void;
@@ -55,7 +56,8 @@ const badgeClass = "px-2.5 py-1 rounded-full text-[10px] font-bold flex items-ce
 const SystemDashboard: React.FC<SystemDashboardProps> = ({ 
     schools, 
     onSelectSchool, 
-    onDeleteSchool, 
+    onDeleteSchool,
+    onToggleStatus,
     onLogout, 
     pricing, 
     onSavePricing 
@@ -125,7 +127,7 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
     });
 
     const copyCredentials = (school: SchoolMetadata) => {
-        const text = `رابط النظام: ${window.location.origin}\nاسم المستخدم: ${school.adminUsername}\nكلمة المرور: ${school.adminPassword}`;
+        const text = `رابط النظام: ${window.location.origin}?school=${school.id}\nاسم المستخدم: ${school.adminUsername}\nكلمة المرور: ${school.adminPassword}`;
         navigator.clipboard.writeText(text);
         alert(`تم نسخ بيانات دخول: ${school.name}`);
     };
@@ -251,7 +253,7 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                                     return (
                                         <div key={school.id} className={`${cardClass} flex flex-col group relative`}>
                                             {/* Status Stripe */}
-                                            <div className={`h-1.5 w-full ${isExpired ? 'bg-rose-500' : school.plan === 'trial' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+                                            <div className={`h-1.5 w-full ${!school.isActive ? 'bg-slate-300' : isExpired ? 'bg-rose-500' : school.plan === 'trial' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
                                             
                                             <div className="p-5 flex justify-between items-start">
                                                 <div>
@@ -285,9 +287,22 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                                                         style={{ width: `${Math.min(100, Math.max(0, (daysRemaining / 365) * 100))}%` }}
                                                     ></div>
                                                 </div>
-                                                <p className={`text-[10px] text-right ${daysRemaining < 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
-                                                    {daysRemaining < 0 ? 'اشتراك منتهي' : `متبقي ${daysRemaining} يوم`}
-                                                </p>
+                                                
+                                                <div className="flex justify-between items-center">
+                                                    <p className={`text-[10px] ${daysRemaining < 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
+                                                        {daysRemaining < 0 ? 'اشتراك منتهي' : `متبقي ${daysRemaining} يوم`}
+                                                    </p>
+                                                    {/* Activation Toggle */}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-500">{school.isActive ? 'مفعل' : 'معطل'}</span>
+                                                        <button 
+                                                            onClick={() => onToggleStatus(school.id, school.isActive)}
+                                                            className={`w-8 h-4 rounded-full relative transition-colors ${school.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                        >
+                                                            <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${school.isActive ? 'right-0.5' : 'right-4.5'}`}></div>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div className="p-4 grid grid-cols-2 gap-3 mt-auto">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, Printer, Download, CreditCard, School, Wallet, Copy, Upload } from 'lucide-react';
+import { CheckCircle, CreditCard, Wallet, Copy, Upload, Clock, X } from 'lucide-react';
 
 interface InvoiceModalProps {
   schoolName: string;
@@ -13,20 +13,53 @@ interface InvoiceModalProps {
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ schoolName, plan, amount, date, invoiceId, onConfirm }) => {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer'>('card');
   const [processing, setProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handlePayment = () => {
       setProcessing(true);
       // Simulate API Call
       setTimeout(() => {
           setProcessing(false);
-          onConfirm();
+          setIsSuccess(true);
       }, 2000);
   };
+
+  const handleClose = () => {
+      onConfirm();
+  };
+
+  if (isSuccess) {
+      return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center animate-slideDown border border-emerald-100">
+                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="text-emerald-600 w-10 h-10" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">تم استلام طلبك بنجاح</h2>
+                <p className="text-slate-500 mb-6 leading-relaxed">
+                    شكراً لاشتراكك في الباقة {plan === 'annual' ? 'السنوية' : 'الفصلية'}.<br/>
+                    <span className="font-bold text-emerald-600 block mt-2 flex items-center justify-center gap-2">
+                        <Clock size={16}/> سيتم تفعيل الحساب خلال 6 ساعات
+                    </span>
+                </p>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs text-slate-400 mb-6">
+                    رقم العملية: <span className="font-mono text-slate-600">{invoiceId}</span>
+                </div>
+                <button 
+                    onClick={handleClose}
+                    className="w-full bg-slate-800 text-white py-3.5 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg"
+                >
+                    حسناً، فهمت
+                </button>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="bg-white p-0 rounded-2xl shadow-xl w-full max-w-lg mx-auto border border-slate-100 animate-slideDown overflow-hidden flex flex-col max-h-[90vh]">
       {/* Header */}
-      <div className="bg-slate-900 text-white p-6 text-center shrink-0">
+      <div className="bg-slate-900 text-white p-6 text-center shrink-0 relative">
         <h2 className="text-xl font-bold">إتمام عملية الدفع</h2>
         <p className="text-slate-400 text-xs mt-1">تجديد اشتراك: {plan === 'annual' ? 'الباقة السنوية' : 'الباقة الفصلية'}</p>
       </div>
