@@ -240,8 +240,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
 
           // Use the detected header row to parse properly
-          // Note: If it's a semicolon CSV opened via XLSX, sometimes all data is in one column. 
-          // But XLSX usually handles it. If not, the mapping below handles finding the right property.
           const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex });
           
           const newStudents: Student[] = [];
@@ -262,7 +260,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               if (name && typeof name === 'string' && name.trim().length > 1) {
                   // 2. Extract and Clean Phone
                   let phone = row[getName('الجوال') || ''] || row[getName('رقم ولي الأمر') || ''] || row['Phone'] || row['Mobile'] || '';
-                  phone = phone.toString().trim();
+                  phone = (phone || '').toString().trim();
                   // Smart Clean: Replace 966 start with 0
                   if (phone.startsWith('966')) {
                       phone = '0' + phone.substring(3);
@@ -273,7 +271,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const sectionNum = row[getName('الفصل') || ''] || row[getName('Class') || ''] || row['Section'] || '';
                   
                   // Clean Grade Name (remove "_قسم عام" etc)
-                  gradeName = gradeName.toString().split('_')[0].trim();
+                  // Safety check for toString on undefined
+                  gradeName = (gradeName || '').toString().split('_')[0].trim();
 
                   // Construct a unique Class Name: e.g., "الأول الابتدائي (1)"
                   let targetClassName = '';
@@ -344,7 +343,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
   };
 
-  // ... (Other handlers remain unchanged)
+  // ... (Rest of component remains unchanged)
   // Re-declare handleClearStudents etc. for completeness since they were inside scope
   const handleClearStudents = () => {
     if (students.length === 0) { alert('لا يوجد طلاب لحذفهم.'); return; }

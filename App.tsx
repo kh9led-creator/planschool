@@ -2,8 +2,8 @@ import React, { useState, useEffect, ErrorInfo, ReactNode, Component, useRef } f
 import WeeklyPlanTemplate from './components/WeeklyPlanTemplate';
 import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
-import SystemDashboard from './components/SystemDashboard'; // Imported standalone component
-import PublicClassPlansView from './components/PublicClassPlansView'; // New component
+import SystemDashboard from './components/SystemDashboard';
+import PublicClassPlansView from './components/PublicClassPlansView';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
 import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon } from 'lucide-react';
@@ -19,10 +19,9 @@ enum ViewState {
   HOME,
   ADMIN,
   TEACHER,
-  PUBLIC_CLASS // New View State for shared class links
+  PUBLIC_CLASS
 }
 
-// Updated Subscription Plans
 type SubscriptionPlan = 'trial' | 'quarterly' | 'annual' | string;
 
 interface SchoolMetadata {
@@ -30,18 +29,16 @@ interface SchoolMetadata {
   name: string;
   createdAt: string;
   isActive: boolean;
-  // Subscription Fields
   subscriptionEnd: string;
   plan: SubscriptionPlan;
   licenseKey: string;
   maxTeachers?: number;
-  // Admin Credentials
   email?: string;
-  managerPhone: string; // New field
+  managerPhone: string;
   adminUsername?: string;
   adminPassword?: string;
-  activationCode: string; // New field
-  isPaid: boolean; // New field
+  activationCode: string;
+  isPaid: boolean;
   isVerified?: boolean;
 }
 
@@ -50,7 +47,7 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
   authorityName: 'وزارة التعليم',
   directorateName: 'الإدارة العامة للتعليم ...',
   schoolName: 'اسم المدرسة',
-  logoUrl: '', // Clean default
+  logoUrl: '',
   footerNotesRight: '( رسالة عامة )',
   footerNotesLeft: 'ملاحظات',
   footerNotesLeftImage: ''
@@ -74,16 +71,9 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  readonly props: Readonly<ErrorBoundaryProps>;
-
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
-
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.props = props;
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -129,7 +119,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// --- 3. Enhanced Storage Hook (Hybrid: Cloud + Local) ---
+// --- 3. Enhanced Storage Hook ---
 function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isCloudEnabled: boolean): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
   const [isLoaded, setIsLoaded] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,10 +136,9 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     return defaultValue;
   });
 
-  // Load from Cloud on Mount (or when schoolId changes)
   useEffect(() => {
     let mounted = true;
-    setIsLoaded(false); // Reset loaded state when switching schools
+    setIsLoaded(false);
     
     const fetchCloud = async () => {
         if (!isCloudEnabled || !getDB()) {
@@ -161,15 +150,6 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
             if (cloudData) {
                 setValue(cloudData);
                 window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(cloudData));
-            } else {
-                // If cloud data is empty but we have local data for this school, keep local? 
-                // Better approach for switching: Re-read local storage for the NEW schoolId first
-                const local = window.localStorage.getItem(`${schoolId}_${key}`);
-                if (local) {
-                    try { setValue(JSON.parse(local)); } catch(e) {}
-                } else {
-                    setValue(defaultValue);
-                }
             }
             setIsLoaded(true);
         }
@@ -178,35 +158,25 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     return () => { mounted = false; };
   }, [schoolId, key, isCloudEnabled]);
 
-  // Save to Local + Cloud (Debounced)
   useEffect(() => {
     if (!isLoaded) return;
-    
-    // Immediate Local Save
     try {
       window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(value));
     } catch (error) {
       console.error(`Error saving locally:`, error);
     }
-
-    // Debounced Cloud Save
     if (isCloudEnabled && getDB()) {
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
-        
         debounceTimer.current = setTimeout(() => {
             saveSchoolData(schoolId, key, value);
-        }, 2000); // Wait 2 seconds of inactivity before writing to cloud
+        }, 2000);
     }
-
-    return () => {
-        if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    }
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); }
   }, [key, value, schoolId, isLoaded, isCloudEnabled]);
 
   return [value, setValue, isLoaded];
 }
 
-// --- 4. Inner System Logic (The School Instance) ---
 interface SchoolSystemProps {
   schoolId: string;
   schoolMetadata: SchoolMetadata; 
@@ -215,9 +185,9 @@ interface SchoolSystemProps {
   isCloudConnected: boolean;
   onRegisterSchool: (data: Partial<SchoolMetadata>) => Promise<void>;
   onUpgradeSubscription: (id: string, plan: SubscriptionPlan, code: string) => Promise<boolean> | boolean;
-  pricing: PricingConfig; // Received from App
-  availableSchools: SchoolMetadata[]; // For switcher
-  initialView?: ViewState; // NEW: For smart navigation
+  pricing: PricingConfig;
+  availableSchools: SchoolMetadata[];
+  initialView?: ViewState;
 }
 
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
@@ -237,24 +207,10 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
+  const [loginError, setLoginError] = useState('');
   
-  // Registration State
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [regForm, setRegForm] = useState({ 
-      name: '', email: '', phone: '', username: '', password: ''
-  });
-
-  // Check Subscription Status
-  const isExpired = new Date(schoolMetadata.subscriptionEnd) < new Date();
-  const daysRemaining = Math.ceil((new Date(schoolMetadata.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-
-  // --- Data State Management (Synced) ---
-  const [schoolSettings, setSchoolSettings, l1] = useSyncedState<SchoolSettings>(
-    {...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 
-    'settings_v1', schoolId, isCloudConnected
-  );
-  
+  // Data States
+  const [schoolSettings, setSchoolSettings, l1] = useSyncedState<SchoolSettings>({...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 'settings_v1', schoolId, isCloudConnected);
   const [weekInfo, setWeekInfo, l2] = useSyncedState<WeekInfo>(INITIAL_WEEK_INFO, 'week_v1', schoolId, isCloudConnected);
   const [subjects, setSubjects, l3] = useSyncedState<Subject[]>([], 'subjects_v1', schoolId, isCloudConnected);
   const [classes, setClasses, l4] = useSyncedState<ClassGroup[]>([], 'classes_v1', schoolId, isCloudConnected);
@@ -269,140 +225,64 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
 
   const isLoading = isCloudConnected && (!l1 || !l2 || !l3 || !l4 || !l5 || !l6 || !l7 || !l8 || !l9 || !l10 || !l11 || !l12);
 
-  // Update local settings name if metadata changes (sync issue fix)
+  // Sync school name
   useEffect(() => {
      if (schoolMetadata.name && schoolSettings.schoolName !== schoolMetadata.name) {
          setSchoolSettings(prev => ({...prev, schoolName: schoolMetadata.name}));
      }
   }, [schoolMetadata.name, schoolId]);
 
-  // Shared Class Logic Detection
+  // Handle Shared Class Link
   useEffect(() => {
       const urlParams = new URLSearchParams(window.location.search);
       const sharedClassId = urlParams.get('classShare');
-      if (sharedClassId) {
-          setView(ViewState.PUBLIC_CLASS);
+      if (sharedClassId && initialView !== ViewState.PUBLIC_CLASS) {
+          // Verify class exists (wait for load)
+          if (l4) {
+             const cls = classes.find(c => c.id === sharedClassId);
+             if (cls) {
+                 setView(ViewState.PUBLIC_CLASS);
+             }
+          }
       }
-  }, []);
+  }, [classes, l4, initialView]);
 
   const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // System Admin Login (Global)
-    if (username === 'kh9led' && password === '121212') {
-        onOpenSystemAdmin();
-        return;
-    }
-
-    // Default School Admin Login (For specific school dashboard)
-    if (username === 'admin' && password === '123456') {
-        setView(ViewState.ADMIN);
-        setUsername('');
-        setPassword('');
-        return;
-    }
-
-    if (schoolMetadata.adminUsername && schoolMetadata.adminPassword) {
-        if (username === schoolMetadata.adminUsername && password === schoolMetadata.adminPassword) {
-             setView(ViewState.ADMIN);
-             setUsername('');
-             setPassword('');
-             return;
-        }
-    }
-
-    if (isExpired) {
-        alert('عذراً، الاشتراك منتهي. النظام متوقف مؤقتاً.');
-        return;
-    }
-    
-    // Check against teachers loaded for THIS schoolId
-    const teacher = teachers.find(t => t.username === username && t.password === password);
-    if (teacher) {
-        if (!schoolMetadata.isActive) {
-             alert('عذراً، حساب المدرسة غير مفعل. يرجى مراجعة إدارة النظام.');
-             return;
-        }
-        setSelectedTeacherId(teacher.id);
-        setView(ViewState.TEACHER);
-        setUsername('');
-        setPassword('');
-    } else {
-        alert('بيانات الدخول غير صحيحة. تأكد من اختيار المدرسة الصحيحة.');
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
       e.preventDefault();
-      if(regForm.name.length < 3 || regForm.username.length < 3 || regForm.password.length < 4 || regForm.phone.length < 10) {
-          alert('الرجاء تعبئة جميع الحقول بشكل صحيح');
+      setLoginError('');
+
+      // Admin Login
+      if (username === schoolMetadata.adminUsername && password === schoolMetadata.adminPassword) {
+          setView(ViewState.ADMIN);
           return;
       }
 
-      setIsRegistering(true);
-      
-      try {
-        await onRegisterSchool({
-            name: regForm.name,
-            email: regForm.email,
-            managerPhone: regForm.phone,
-            adminUsername: regForm.username,
-            adminPassword: regForm.password,
-            plan: 'trial',
-            isActive: true,
-            isPaid: false
-        });
-        
-        setShowRegisterModal(false);
-        setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
-      } catch (error) {
-          alert('حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.');
-      } finally {
-          setIsRegistering(false);
+      // Teacher Login
+      const teacher = teachers.find(t => t.username === username && (t.password === password || (!t.password && password === '')));
+      if (teacher) {
+          setSelectedTeacherId(teacher.id);
+          setView(ViewState.TEACHER);
+          return;
       }
+
+      setLoginError('بيانات الدخول غير صحيحة');
   };
 
-  const handleFullSystemReset = () => {
-      // This wipes all operational data but keeps school settings
-      setStudents([]);
-      setTeachers([]);
-      setClasses([]);
-      setSchedule([]);
-      setPlanEntries([]);
-      setSubjects([]);
-      setArchivedPlans([]);
-      setAttendanceRecords([]);
-      setMessages([]);
-      setArchivedAttendanceLogs([]);
-      // We keep 'schoolSettings' and 'weekInfo' to not break the basic UI immediately
-  };
-
-  const currentTeacher = teachers.find(t => t.id === selectedTeacherId);
+  const activeTeacher = teachers.find(t => t.id === selectedTeacherId);
+  const sharedClassId = new URLSearchParams(window.location.search).get('classShare');
+  const sharedClass = classes.find(c => c.id === sharedClassId);
 
   if (isLoading) {
-      return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
-              <Loader2 className="animate-spin text-indigo-600" size={40} />
-              <p className="text-gray-600 font-bold">جاري تحميل بيانات المدرسة...</p>
-          </div>
-      )
+      return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40}/></div>;
   }
 
-  // --- PUBLIC CLASS VIEW RENDER ---
-  if (view === ViewState.PUBLIC_CLASS) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const sharedClassId = urlParams.get('classShare');
-      const targetClass = classes.find(c => c.id === sharedClassId);
-
-      if (!targetClass) {
-          return <div className="min-h-screen flex items-center justify-center text-gray-500 font-bold">عذراً، الرابط غير صحيح أو الفصل غير موجود.</div>
-      }
-
+  // PUBLIC VIEW
+  if (view === ViewState.PUBLIC_CLASS && sharedClass) {
       return (
           <PublicClassPlansView 
               schoolSettings={schoolSettings}
-              classGroup={targetClass}
-              students={students.filter(s => s.classId === sharedClassId)}
+              classGroup={sharedClass}
+              students={students.filter(s => s.classId === sharedClass.id)}
               weekInfo={weekInfo}
               schedule={schedule}
               planEntries={planEntries}
@@ -411,570 +291,368 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
       );
   }
 
-  if (view === ViewState.HOME) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative font-sans">
-        
-        {/* Top Right Controls */}
-        <div className="absolute top-4 right-4 z-20 flex gap-4 items-center">
-           {isCloudConnected ? (
-               <div className="flex items-center gap-1 text-green-600 bg-white px-3 py-1 rounded-full shadow-sm text-xs font-bold border border-green-100" title="متصل بالسحابة">
-                   <Wifi size={14} /> متصل
-               </div>
-           ) : (
-               <div className="flex items-center gap-1 text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm text-xs font-bold border border-gray-100" title="محلي فقط">
-                   <WifiOff size={14} /> محلي
-               </div>
-           )}
-
-           <button 
-                onClick={() => setShowRegisterModal(true)}
-                className="bg-white hover:bg-indigo-50 text-indigo-600 px-5 py-2.5 rounded-full flex items-center gap-2 shadow-sm font-bold text-sm border border-indigo-100 transition-all hover:shadow-md"
-           >
-               <PlusCircle size={16} />
-               تسجيل مدرسة جديدة
-           </button>
-        </div>
-
-        {/* Missing Config Alert */}
-        {!isCloudConnected && (
-            <div className="absolute top-4 left-4 z-20 bg-amber-50 text-amber-800 px-4 py-2 rounded-lg border border-amber-200 text-xs font-bold shadow-sm max-w-xs">
-                <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle size={14}/> تنبيه إعدادات
-                </div>
-                لم يتم العثور على مفاتيح Firebase. النظام يعمل محلياً. للربط، قم بإنشاء ملف .env
-            </div>
-        )}
-
-        {/* Login Card */}
-        <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md text-center space-y-8 border border-white/50 backdrop-blur-sm relative overflow-hidden animate-slideDown">
-           <div className={`absolute top-0 left-0 w-full h-2 ${isExpired ? 'bg-red-500' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500'}`}></div>
-
-           <div className="space-y-4">
-             <div className="w-28 h-28 bg-white rounded-full mx-auto flex items-center justify-center text-white shadow-lg border-4 border-slate-50 overflow-hidden relative">
-               {schoolSettings.logoUrl ? (
-                   <img src={schoolSettings.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
-               ) : (
-                   <ShieldCheck size={48} className="text-slate-300"/>
-               )}
-             </div>
-             <div>
-                <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">نظام الخطط الأسبوعية</h1>
-                <p className="text-slate-500 text-sm mt-1 font-medium">{schoolMetadata.name}</p>
-                
-                {/* School Switcher */}
-                {availableSchools.length > 1 && (
-                    <div className="relative mt-2 inline-block">
-                        <button 
-                            onClick={() => setShowSchoolMenu(!showSchoolMenu)}
-                            className="text-indigo-600 text-xs font-bold flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors mx-auto"
-                        >
-                            تغيير المدرسة <ChevronDown size={12}/>
-                        </button>
-                        {showSchoolMenu && (
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl mt-2 py-1 z-50 max-h-60 overflow-y-auto">
-                                {availableSchools.map(s => (
-                                    <button
-                                        key={s.id}
-                                        onClick={() => { onSwitchSchool(s.id); setShowSchoolMenu(false); }}
-                                        className={`w-full text-right px-4 py-2 text-xs font-bold hover:bg-slate-50 ${s.id === schoolId ? 'text-indigo-600 bg-indigo-50' : 'text-slate-600'}`}
-                                    >
-                                        {s.name}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="mt-2">
-                    {!isExpired ? (
-                    <p className="text-emerald-600 text-[10px] font-bold bg-emerald-50 inline-block px-2 py-1 rounded-lg">
-                        {schoolMetadata.plan === 'trial' ? 'فترة تجريبية' : 'اشتراك مدفوع'} ({daysRemaining} يوم متبقي)
-                    </p>
-                    ) : (
-                    <p className="text-red-600 text-[10px] font-bold bg-red-50 inline-block px-2 py-1 rounded-lg flex items-center gap-1 mx-auto w-fit">
-                        <AlertOctagon size={12}/> الاشتراك منتهي
-                    </p>
-                    )}
-                </div>
-             </div>
-           </div>
-
-           {isExpired && (
-             <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center space-y-3">
-               <Lock size={40} className="text-red-400 mx-auto" />
-               <h3 className="font-bold text-red-800">النظام مجمد</h3>
-               <p className="text-xs text-red-600 leading-relaxed">
-                 انتهت صلاحية الاشتراك. تم إيقاف جميع الخصائص للمعلمين. يرجى من المدير تسجيل الدخول لتجديد الاشتراك.
-               </p>
-             </div>
-           )}
-
-           <form onSubmit={handleLogin} className="space-y-4 text-right">
-                  <div className="relative group">
-                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <UserCog size={18} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors"/>
-                     </div>
-                     <input 
-                       type="text" 
-                       placeholder="اسم المستخدم" 
-                       className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                       value={username}
-                       onChange={e => setUsername(e.target.value)}
-                     />
-                  </div>
-                  <div className="relative group">
-                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <ShieldCheck size={18} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors"/>
-                     </div>
-                     <input 
-                       type="password" 
-                       placeholder="كلمة المرور" 
-                       className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                       value={password}
-                       onChange={e => setPassword(e.target.value)}
-                     />
-                  </div>
-                  <button 
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3.5 rounded-xl hover:from-indigo-700 hover:to-indigo-800 font-bold transition-all shadow-lg shadow-indigo-200 transform hover:-translate-y-0.5"
-                  >
-                    تسجيل الدخول
-                  </button>
-           </form>
-           
-           <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
-               <span>v3.9.8</span>
-               <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
-                   {schoolMetadata.plan.toUpperCase()}
-               </span>
-           </div>
-        </div>
-
-        {/* Simplified Registration Modal */}
-        {showRegisterModal && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-slideDown flex flex-col max-h-[90vh]">
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white flex justify-between items-start shrink-0">
-                        <div>
-                            <h3 className="text-xl font-bold flex items-center gap-2"><School size={24}/> تسجيل مدرسة جديدة</h3>
-                            <p className="text-indigo-100 text-sm mt-1">ابدأ فترتك التجريبية المجانية (14 يوم)</p>
-                        </div>
-                        <button onClick={() => setShowRegisterModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                            <X size={20}/>
-                        </button>
-                    </div>
-
-                    <div className="p-8 space-y-4 overflow-y-auto">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-1">اسم المدرسة</label>
-                            <input type="text" className={inputModernClass} placeholder="مدرسة..." value={regForm.name} onChange={(e) => setRegForm({...regForm, name: e.target.value})} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">رقم جوال المدير</label>
-                                <div className="relative">
-                                    <input type="text" className={`${inputModernClass} pl-10`} placeholder="05xxxxxxxx" value={regForm.phone} onChange={(e) => setRegForm({...regForm, phone: e.target.value})} />
-                                    <Smartphone size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
-                                <div className="relative">
-                                    <input type="email" className={`${inputModernClass} pl-10`} placeholder="email@..." value={regForm.email} onChange={(e) => setRegForm({...regForm, email: e.target.value})} />
-                                    <Mail size={18} className="absolute left-3 top-3.5 text-slate-400"/>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">اسم المستخدم</label>
-                                <input type="text" className={inputModernClass} placeholder="admin" value={regForm.username} onChange={(e) => setRegForm({...regForm, username: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">كلمة المرور</label>
-                                <input type="password" className={inputModernClass} placeholder="****" value={regForm.password} onChange={(e) => setRegForm({...regForm, password: e.target.value})} />
-                            </div>
-                        </div>
-                        
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex gap-3 items-start">
-                             <CheckCircle className="text-indigo-600 shrink-0 mt-0.5" size={18}/>
-                             <p className="text-xs text-indigo-800 leading-relaxed">
-                                 عند التسجيل، ستحصل على صلاحية كاملة للنظام لمدة 14 يوماً مجاناً. يمكنك ترقية الباقة لاحقاً من إعدادات المدرسة.
-                             </p>
-                        </div>
-
-                        <button onClick={handleRegister} disabled={isRegistering} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 mt-4 transition-all disabled:opacity-70 disabled:cursor-not-allowed">
-                            {isRegistering ? <Loader2 className="animate-spin"/> : <><ArrowRight size={20} className="rotate-180"/> إنشاء الحساب وبدء التجربة</>}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-
-      </div>
-    );
-  }
-
-  if (view === ViewState.TEACHER && currentTeacher) {
-      return (
-      <div className="min-h-screen flex flex-col bg-gray-100">
-         <div className="bg-gradient-to-r from-green-700 to-emerald-600 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-                <div className="bg-white/20 p-2 rounded-lg"><UserCog size={20}/></div>
-                <div>
-                    <h1 className="font-bold text-lg leading-tight">بوابة المعلم</h1>
-                    <span className="text-green-100 text-xs block">{schoolSettings.schoolName}</span>
-                </div>
-            </div>
-            <div className="flex items-center gap-3">
-                {isCloudConnected && (
-                    <span className="text-xs bg-green-800/50 px-2 py-1 rounded flex items-center gap-1">
-                        <Cloud size={12}/> متزامن
-                    </span>
-                )}
-                <button onClick={() => setView(ViewState.HOME)} className="text-xs bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors backdrop-blur-sm font-bold">
-                    تسجيل خروج
-                </button>
-            </div>
-         </div>
-         <TeacherPortal 
-            teacher={currentTeacher}
-            schedule={schedule}
-            weekInfo={weekInfo}
-            existingEntries={planEntries}
-            onSaveEntry={(entry) => setPlanEntries(prev => [...prev.filter(e => !(e.dayIndex === entry.dayIndex && e.period === entry.period && e.classId === entry.classId)), entry])}
-            subjects={subjects}
-            students={students}
-            classes={classes}
-            attendanceRecords={attendanceRecords}
-            onMarkAttendance={(record) => setAttendanceRecords(prev => [...prev.filter(r => !(r.studentId === record.studentId && r.date === record.date)), record])}
-            messages={messages}
-            onSendMessage={(msg) => setMessages(prev => [msg, ...prev])}
-            schoolSettings={schoolSettings}
-         />
-      </div>
-    );
-  }
-
+  // ADMIN VIEW
   if (view === ViewState.ADMIN) {
       return (
-       <div className="min-h-screen flex flex-col bg-gray-100">
-         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 shadow-lg flex justify-between items-center no-print sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-                <div className="bg-white/10 p-2 rounded-lg"><ShieldCheck size={20}/></div>
-                <div>
-                     <h1 className="font-bold text-lg leading-tight">بوابة الإدارة</h1>
-                     <span className="text-slate-400 text-xs block">لوحة التحكم المركزية</span>
-                     {isExpired && <span className="text-[10px] bg-red-500 text-white px-2 rounded-full ml-1 animate-pulse">اشتراك منتهي</span>}
-                </div>
-            </div>
-            <div className="flex items-center gap-3">
-                {isCloudConnected && (
-                    <span className="text-xs bg-slate-700 px-2 py-1 rounded flex items-center gap-1">
-                        <Cloud size={12}/> متزامن
-                    </span>
-                )}
-                <button onClick={() => setView(ViewState.HOME)} className="text-xs bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-colors font-bold">
-                    تسجيل خروج
-                </button>
-            </div>
-         </div>
-         <AdminDashboard 
-            classes={classes}
-            weekInfo={weekInfo}
-            setWeekInfo={setWeekInfo}
-            schoolSettings={schoolSettings}
-            setSchoolSettings={setSchoolSettings}
-            schedule={schedule}
-            planEntries={planEntries}
-            teachers={teachers}
-            students={students}
-            subjects={subjects}
-            onSetSubjects={setSubjects}
-            onSetStudents={setStudents}
-            onSetClasses={setClasses}
-            onAddTeacher={(t) => setTeachers(prev => [...prev, t])}
-            onUpdateTeacher={(t) => setTeachers(prev => prev.map(old => old.id === t.id ? t : old))}
-            onDeleteTeacher={(id) => setTeachers(prev => prev.filter(t => t.id !== id))}
-            onArchivePlan={(name, week, entries) => setArchivedPlans(prev => [{id: Date.now().toString(), schoolId: schoolId, archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: week, entries, name, className: classes[0]?.name || 'عام'}, ...prev])}
-            onClearPlans={() => { if(window.confirm('تأكيد تفريغ الخطط؟')) setPlanEntries([]) }}
-            archivedPlans={archivedPlans}
-            onDeleteArchive={(id) => setArchivedPlans(prev => prev.filter(a => a.id !== id))}
-            onAddClass={(c) => setClasses(prev => [...prev, c])}
-            onUpdateSchedule={(s) => setSchedule(prev => [...prev.filter(old => !(old.classId === s.classId && old.dayIndex === s.dayIndex && old.period === s.period)), s])}
-            attendanceRecords={attendanceRecords}
-            onMarkAttendance={(record) => setAttendanceRecords(prev => [...prev.filter(r => !(r.studentId === record.studentId && r.date === record.date)), record])}
-            messages={messages}
-            onSendMessage={(msg) => setMessages(prev => [msg, ...prev])}
-            // Pass Subscription Data
-            schoolMetadata={schoolMetadata}
-            onRenewSubscription={(plan, code) => onUpgradeSubscription(schoolMetadata.id, plan, code)}
-            pricing={pricing}
-            schoolId={schoolId} // Added Prop for Data Ownership
-            onResetSystem={handleFullSystemReset} // NEW: Reset Logic
-            // NEW: Attendance Archive
-            archivedAttendanceLogs={archivedAttendanceLogs}
-            onArchiveAttendance={(log) => setArchivedAttendanceLogs(prev => [log, ...prev])}
-            onDeleteAttendanceArchive={(id) => setArchivedAttendanceLogs(prev => prev.filter(a => a.id !== id))}
-         />
-      </div>
-    );
+          <div className="relative">
+              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج">
+                  <LogOut size={20}/>
+              </button>
+              <AdminDashboard 
+                  schoolId={schoolId}
+                  schoolMetadata={schoolMetadata}
+                  classes={classes}
+                  onAddClass={c => setClasses([...classes, c])}
+                  onSetClasses={setClasses}
+                  weekInfo={weekInfo}
+                  setWeekInfo={setWeekInfo}
+                  schoolSettings={schoolSettings}
+                  setSchoolSettings={setSchoolSettings}
+                  schedule={schedule}
+                  onUpdateSchedule={slot => {
+                      const others = schedule.filter(s => !(s.dayIndex === slot.dayIndex && s.period === slot.period && s.classId === slot.classId));
+                      setSchedule([...others, slot]);
+                  }}
+                  planEntries={planEntries}
+                  teachers={teachers}
+                  onAddTeacher={t => setTeachers([...teachers, t])}
+                  onUpdateTeacher={t => setTeachers(teachers.map(x => x.id === t.id ? t : x))}
+                  onDeleteTeacher={id => setTeachers(teachers.filter(x => x.id !== id))}
+                  students={students}
+                  onSetStudents={setStudents}
+                  subjects={subjects}
+                  onSetSubjects={setSubjects}
+                  onArchivePlan={(name, w, e) => setArchivedPlans([...archivedPlans, {id: Date.now().toString(), schoolId, name, className: name.split(' - ')[0], archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: w, entries: e}])}
+                  onClearPlans={() => setPlanEntries([])}
+                  archivedPlans={archivedPlans}
+                  onDeleteArchive={id => setArchivedPlans(archivedPlans.filter(a => a.id !== id))}
+                  attendanceRecords={attendanceRecords}
+                  onMarkAttendance={r => {
+                      const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date));
+                      setAttendanceRecords([...others, r]);
+                  }}
+                  messages={messages}
+                  onSendMessage={m => setMessages([...messages, m])}
+                  onRenewSubscription={onUpgradeSubscription}
+                  pricing={pricing}
+                  onResetSystem={() => {
+                      setClasses([]); setSubjects([]); setStudents([]); setTeachers([]); setSchedule([]); setPlanEntries([]); setAttendanceRecords([]); setArchivedPlans([]); setArchivedAttendanceLogs([]); setMessages([]);
+                  }}
+                  archivedAttendanceLogs={archivedAttendanceLogs}
+                  onArchiveAttendance={log => setArchivedAttendanceLogs([...archivedAttendanceLogs, log])}
+                  onDeleteAttendanceArchive={id => setArchivedAttendanceLogs(archivedAttendanceLogs.filter(a => a.id !== id))}
+              />
+          </div>
+      );
   }
 
-  return <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto"/> جاري تحميل النظام...</div>;
+  // TEACHER VIEW
+  if (view === ViewState.TEACHER && activeTeacher) {
+      return (
+          <div className="relative">
+              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج">
+                  <LogOut size={20}/>
+              </button>
+              <TeacherPortal 
+                  teacher={activeTeacher}
+                  schedule={schedule}
+                  existingEntries={planEntries}
+                  weekInfo={weekInfo}
+                  onSaveEntry={e => {
+                      const others = planEntries.filter(x => !(x.dayIndex === e.dayIndex && x.period === e.period && x.classId === e.classId));
+                      setPlanEntries([...others, e]);
+                  }}
+                  subjects={subjects}
+                  students={students}
+                  classes={classes}
+                  attendanceRecords={attendanceRecords}
+                  onMarkAttendance={r => {
+                      const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date));
+                      setAttendanceRecords([...others, r]);
+                  }}
+                  messages={messages}
+                  onSendMessage={m => setMessages([...messages, m])}
+                  schoolSettings={schoolSettings}
+              />
+          </div>
+      );
+  }
+
+  // HOME / LOGIN VIEW
+  return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+          
+          {/* Top Bar */}
+          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20">
+              <div className="flex items-center gap-2 text-white/50">
+                   <ShieldCheck size={20}/>
+                   <span className="text-xs font-mono">نظام إدارة الخطط المدرسية v2.0</span>
+              </div>
+              <div className="flex gap-3">
+                  {onSwitchSchool && availableSchools.length > 1 && (
+                      <div className="relative">
+                          <button onClick={() => setShowSchoolMenu(!showSchoolMenu)} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 backdrop-blur-sm border border-white/10 transition-all">
+                              <Building2 size={16}/> {schoolMetadata.name} <ChevronDown size={14}/>
+                          </button>
+                          {showSchoolMenu && (
+                              <div className="absolute left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl py-2 overflow-hidden animate-slideDown z-50">
+                                  {availableSchools.map(s => (
+                                      <button 
+                                          key={s.id} 
+                                          onClick={() => {onSwitchSchool(s.id); setShowSchoolMenu(false);}}
+                                          className={`w-full text-right px-4 py-3 text-sm hover:bg-slate-50 flex items-center justify-between ${s.id === schoolId ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600'}`}
+                                      >
+                                          {s.name}
+                                          {s.id === schoolId && <Check size={16}/>}
+                                      </button>
+                                  ))}
+                              </div>
+                          )}
+                      </div>
+                  )}
+                  <button onClick={onOpenSystemAdmin} className="bg-white/5 hover:bg-white/10 text-slate-300 p-2 rounded-xl transition-all" title="لوحة النظام">
+                      <Power size={20}/>
+                  </button>
+              </div>
+          </div>
+
+          <div className="w-full max-w-md relative z-10">
+              <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+                  <div className="p-8 text-center bg-white relative">
+                      <div className="w-24 h-24 bg-slate-50 rounded-full mx-auto mb-4 flex items-center justify-center shadow-inner border border-slate-100">
+                          {schoolSettings.logoUrl ? (
+                              <img src={schoolSettings.logoUrl} alt="Logo" className="w-16 h-16 object-contain"/>
+                          ) : (
+                              <SchoolIcon size={40} className="text-indigo-600"/>
+                          )}
+                      </div>
+                      <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{schoolMetadata.name}</h1>
+                      <p className="text-slate-500 text-sm">تسجيل الدخول للنظام</p>
+                  </div>
+                  
+                  <form onSubmit={handleLogin} className="p-8 space-y-5">
+                      {loginError && (
+                          <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-100">
+                              <AlertOctagon size={16}/> {loginError}
+                          </div>
+                      )}
+                      
+                      <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-500 mr-1">اسم المستخدم</label>
+                          <div className="relative">
+                              <input 
+                                  type="text" 
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-bold placeholder:font-normal"
+                                  placeholder="أدخل اسم المستخدم"
+                                  value={username}
+                                  onChange={e => setUsername(e.target.value)}
+                              />
+                              <User className="absolute left-3 top-3.5 text-slate-400" size={18}/>
+                          </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-500 mr-1">كلمة المرور</label>
+                          <div className="relative">
+                              <input 
+                                  type="password" 
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-bold placeholder:font-normal"
+                                  placeholder="••••••••"
+                                  value={password}
+                                  onChange={e => setPassword(e.target.value)}
+                              />
+                              <Key className="absolute left-3 top-3.5 text-slate-400" size={18}/>
+                          </div>
+                      </div>
+
+                      <button type="submit" className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 group">
+                          <LogIn size={20} className="group-hover:translate-x-1 transition-transform"/>
+                          تسجيل الدخول
+                      </button>
+
+                  </form>
+              </div>
+              <p className="text-center text-slate-500 text-xs mt-6 font-medium">جميع الحقوق محفوظة &copy; {new Date().getFullYear()}</p>
+          </div>
+      </div>
+  );
 };
 
 const App: React.FC = () => {
-  const [isCloudConnected, setIsCloudConnected] = useState(false);
-  const [schools, setSchools] = useState<SchoolMetadata[]>([]);
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('');
-  const [showSystemAdmin, setShowSystemAdmin] = useState(false);
-  const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 150, annual: 450, currency: 'SAR' });
-  const [loading, setLoading] = useState(true);
+    // System State
+    const [schools, setSchools] = useState<SchoolMetadata[]>([]);
+    const [currentSchoolId, setCurrentSchoolId] = useState<string>('');
+    const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+    const [isCloudConnected, setIsCloudConnected] = useState(false);
+    const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 100, annual: 300, currency: 'SAR' });
+    const [loaded, setLoaded] = useState(false);
 
-  // Initialize Firebase
-  useEffect(() => {
-    const config: FirebaseConfig = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID
-    };
-    
-    if (config.apiKey && config.apiKey.length > 0) {
-        const success = initFirebase(config);
-        setIsCloudConnected(success);
-    }
-  }, []);
+    // Init Logic
+    useEffect(() => {
+        const init = async () => {
+            const config: FirebaseConfig = {
+                apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+                authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+                projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+                storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+                messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+                appId: import.meta.env.VITE_FIREBASE_APP_ID
+            };
+            
+            const connected = initFirebase(config);
+            setIsCloudConnected(connected);
 
-  // Load Schools & System Settings
-  useEffect(() => {
-    const loadSystem = async () => {
-        setLoading(true);
-        try {
-            if (!isCloudConnected) {
-                // Local Mode
+            // Load Schools Registry
+            let loadedSchools: SchoolMetadata[] = [];
+            if (connected) {
+                const cloudSchools = await loadSystemData('schools_registry');
+                if (cloudSchools) loadedSchools = cloudSchools;
+            }
+
+            if (loadedSchools.length === 0) {
                 const localSchools = localStorage.getItem('system_schools');
                 if (localSchools) {
-                    setSchools(JSON.parse(localSchools));
-                } else {
-                     // Create default school if nothing exists
-                     const defaultSchool: SchoolMetadata = {
-                         id: 'default_school',
-                         name: 'المدرسة الافتراضية',
-                         createdAt: new Date().toISOString(),
-                         isActive: true,
-                         subscriptionEnd: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-                         plan: 'trial',
-                         licenseKey: 'DEMO-KEY',
-                         managerPhone: '',
-                         activationCode: '1234',
-                         isPaid: false
-                     };
-                     setSchools([defaultSchool]);
-                     localStorage.setItem('system_schools', JSON.stringify([defaultSchool]));
+                    try { loadedSchools = JSON.parse(localSchools); } catch(e) {}
                 }
-                
-                const localPricing = localStorage.getItem('system_pricing');
-                if (localPricing) setPricing(JSON.parse(localPricing));
-            } else {
-                // Cloud Mode
-                const cloudSchools = await loadSchoolData('system', 'schools_registry');
-                if (cloudSchools && Array.isArray(cloudSchools)) {
-                    setSchools(cloudSchools);
-                } else {
-                     const defaultSchool: SchoolMetadata = {
-                         id: 'default_school',
-                         name: 'المدرسة الافتراضية',
-                         createdAt: new Date().toISOString(),
-                         isActive: true,
-                         subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                         plan: 'trial',
-                         licenseKey: 'DEMO-KEY',
-                         managerPhone: '',
-                         activationCode: '1234',
-                         isPaid: false
-                     };
-                     setSchools([defaultSchool]); 
-                }
-    
+            }
+
+            // Fallback for demo
+            if (loadedSchools.length === 0) {
+                loadedSchools = [{
+                    id: 'school_default',
+                    name: 'مدرسة تجريبية',
+                    createdAt: new Date().toISOString(),
+                    isActive: true,
+                    subscriptionEnd: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+                    plan: 'trial',
+                    licenseKey: 'DEMO-KEY',
+                    managerPhone: '',
+                    adminUsername: 'admin',
+                    adminPassword: '123',
+                    activationCode: '1234',
+                    isPaid: false
+                }];
+            }
+            
+            setSchools(loadedSchools);
+
+            // Load Pricing
+            if (connected) {
                 const cloudPricing = await loadSystemData('pricing_config');
                 if (cloudPricing) setPricing(cloudPricing);
             }
-        } catch (error) {
-            console.error("System Load Error", error);
-        } finally {
-            setLoading(false);
+
+            // Determine Start View
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlSchoolId = urlParams.get('school');
+            const urlAdmin = urlParams.get('admin');
+
+            if (urlAdmin) {
+                setIsSystemAdmin(true);
+            } else if (urlSchoolId && loadedSchools.find(s => s.id === urlSchoolId)) {
+                setCurrentSchoolId(urlSchoolId);
+            } else {
+                setCurrentSchoolId(loadedSchools[0].id);
+            }
+
+            setLoaded(true);
+        };
+        init();
+    }, []);
+
+    // Persist Registry
+    useEffect(() => {
+        if (!loaded) return;
+        localStorage.setItem('system_schools', JSON.stringify(schools));
+        if (isCloudConnected) {
+            saveSystemData('schools_registry', schools);
+            saveSystemData('pricing_config', pricing);
+        }
+    }, [schools, isCloudConnected, loaded, pricing]);
+
+    const handleRegisterSchool = async (data: Partial<SchoolMetadata>) => {
+        const newSchool: SchoolMetadata = {
+            id: `sch_${Date.now()}`,
+            name: data.name || 'مدرسة جديدة',
+            createdAt: new Date().toISOString(),
+            isActive: true,
+            subscriptionEnd: new Date(Date.now() + 7*24*60*60*1000).toISOString(), // 7 days trial
+            plan: 'trial',
+            licenseKey: `KEY-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
+            managerPhone: data.managerPhone || '',
+            adminUsername: data.adminUsername || 'admin',
+            adminPassword: data.adminPassword || '123456',
+            activationCode: Math.floor(1000 + Math.random() * 9000).toString(),
+            isPaid: false,
+            email: data.email,
+            ...data
+        };
+        setSchools([...schools, newSchool]);
+        setCurrentSchoolId(newSchool.id);
+        
+        // Send email
+        if (newSchool.email) {
+            await sendActivationEmail(newSchool.email, newSchool.name, newSchool.activationCode, 'registration');
         }
     };
 
-    loadSystem();
-  }, [isCloudConnected]);
+    const handleUpgradeSubscription = async (id: string, plan: SubscriptionPlan, code: string) => {
+        const school = schools.find(s => s.id === id);
+        if (!school) return false;
 
-  // URL Handling
-  useEffect(() => {
-      if (loading) return;
-      
-      const params = new URLSearchParams(window.location.search);
-      const urlSchoolId = params.get('school');
-      
-      if (urlSchoolId) {
-          const exists = schools.find(s => s.id === urlSchoolId);
-          if (exists) {
-              setSelectedSchoolId(urlSchoolId);
-              return;
-          }
-      }
-      
-      if (!selectedSchoolId && schools.length > 0) {
-          setSelectedSchoolId(schools[0].id);
-      }
-  }, [schools, selectedSchoolId, loading]);
+        if (code === school.activationCode) {
+            const duration = plan === 'annual' ? 365 : 90;
+            const updated = {
+                ...school,
+                plan: plan,
+                isPaid: true,
+                isActive: true,
+                subscriptionEnd: new Date(Date.now() + duration*24*60*60*1000).toISOString(),
+                activationCode: Math.floor(1000 + Math.random() * 9000).toString() // Reset code
+            };
+            setSchools(schools.map(s => s.id === id ? updated : s));
+            return true;
+        }
+        return false;
+    };
 
-  // Handlers
-  const handleRegisterSchool = async (data: Partial<SchoolMetadata>) => {
-      const newSchool: SchoolMetadata = {
-          id: `sch_${Date.now()}`,
-          name: data.name || 'مدرسة جديدة',
-          createdAt: new Date().toISOString(),
-          isActive: true,
-          subscriptionEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          plan: 'trial',
-          licenseKey: `KEY-${Date.now()}`,
-          managerPhone: data.managerPhone || '',
-          email: data.email,
-          adminUsername: data.adminUsername || 'admin',
-          adminPassword: data.adminPassword || '123456',
-          activationCode: Math.floor(1000 + Math.random() * 9000).toString(),
-          isPaid: false
-      };
+    if (!loaded) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white"><Loader2 className="animate-spin" size={48}/></div>;
 
-      const updatedSchools = [...schools, newSchool];
-      setSchools(updatedSchools);
-      setSelectedSchoolId(newSchool.id);
-      
-      if (isCloudConnected) {
-          await saveSchoolData('system', 'schools_registry', updatedSchools);
-      } else {
-          localStorage.setItem('system_schools', JSON.stringify(updatedSchools));
-      }
+    if (isSystemAdmin) {
+        return (
+            <ErrorBoundary>
+                <SystemDashboard 
+                    schools={schools}
+                    onSelectSchool={(id) => { setCurrentSchoolId(id); setIsSystemAdmin(false); }}
+                    onDeleteSchool={(id) => setSchools(schools.filter(s => s.id !== id))}
+                    onToggleStatus={(id, current) => setSchools(schools.map(s => s.id === id ? {...s, isActive: !current} : s))}
+                    onLogout={() => { setIsSystemAdmin(false); window.history.pushState({}, '', window.location.pathname); }}
+                    pricing={pricing}
+                    onSavePricing={setPricing}
+                />
+            </ErrorBoundary>
+        );
+    }
 
-      if (newSchool.email) {
-          await sendActivationEmail(newSchool.email, newSchool.name, newSchool.activationCode, 'registration');
-      }
-      
-      alert(`تم تسجيل المدرسة بنجاح!\nاسم المستخدم: ${newSchool.adminUsername}\nكلمة المرور: ${newSchool.adminPassword}`);
-  };
+    const currentSchool = schools.find(s => s.id === currentSchoolId) || schools[0];
 
-  const handleUpgradeSubscription = async (id: string, plan: SubscriptionPlan, code: string) => {
-      const school = schools.find(s => s.id === id);
-      if (!school) return false;
+    if (!currentSchool) return <div>No schools available.</div>;
 
-      if (code !== school.activationCode) {
-          return false;
-      }
-
-      const duration = plan === 'annual' ? 365 : 90;
-      const updatedSchool: SchoolMetadata = {
-          ...school,
-          plan: plan,
-          subscriptionEnd: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString(),
-          isActive: true,
-          isPaid: true
-      };
-
-      const updatedSchools = schools.map(s => s.id === id ? updatedSchool : s);
-      setSchools(updatedSchools);
-
-      if (isCloudConnected) {
-          await saveSchoolData('system', 'schools_registry', updatedSchools);
-      } else {
-          localStorage.setItem('system_schools', JSON.stringify(updatedSchools));
-      }
-      
-      return true;
-  };
-
-  const handleSystemSavePricing = (newPricing: PricingConfig) => {
-      setPricing(newPricing);
-      if (isCloudConnected) {
-          saveSystemData('pricing_config', newPricing);
-      } else {
-          localStorage.setItem('system_pricing', JSON.stringify(newPricing));
-      }
-  };
-  
-  const handleDeleteSchool = (id: string) => {
-      const updated = schools.filter(s => s.id !== id);
-      setSchools(updated);
-      if(isCloudConnected) saveSchoolData('system', 'schools_registry', updated);
-      else localStorage.setItem('system_schools', JSON.stringify(updated));
-      
-      if (selectedSchoolId === id) setSelectedSchoolId(updated[0]?.id || '');
-  };
-
-  const handleToggleSchoolStatus = (id: string, currentStatus: boolean) => {
-       const updated = schools.map(s => s.id === id ? { ...s, isActive: !currentStatus } : s);
-       setSchools(updated);
-       if(isCloudConnected) saveSchoolData('system', 'schools_registry', updated);
-       else localStorage.setItem('system_schools', JSON.stringify(updated));
-  };
-
-  if (showSystemAdmin) {
-      return (
-          <SystemDashboard 
-              schools={schools}
-              onSelectSchool={(id) => { setSelectedSchoolId(id); setShowSystemAdmin(false); }}
-              onDeleteSchool={handleDeleteSchool}
-              onToggleStatus={handleToggleSchoolStatus}
-              onLogout={() => setShowSystemAdmin(false)}
-              pricing={pricing}
-              onSavePricing={handleSystemSavePricing}
-          />
-      );
-  }
-
-  const selectedSchool = schools.find(s => s.id === selectedSchoolId);
-
-  if (loading) {
-     return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 flex-col gap-4">
-              <Loader2 className="animate-spin text-indigo-600" size={32}/>
-              <p className="text-slate-500 font-bold">جاري تحميل النظام...</p>
-          </div>
-     );
-  }
-
-  if (!selectedSchool) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 flex-col gap-4">
-              <p className="text-slate-500 font-bold">لا توجد مدارس مسجلة.</p>
-              <button onClick={() => handleRegisterSchool({name: 'المدرسة الأولى'})} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold">
-                  إنشاء مدرسة جديدة
-              </button>
-          </div>
-      );
-  }
-
-  return (
-    <ErrorBoundary>
-        <SchoolSystem 
-            schoolId={selectedSchool.id}
-            schoolMetadata={selectedSchool}
-            onSwitchSchool={setSelectedSchoolId}
-            onOpenSystemAdmin={() => setShowSystemAdmin(true)}
-            isCloudConnected={isCloudConnected}
-            onRegisterSchool={handleRegisterSchool}
-            onUpgradeSubscription={handleUpgradeSubscription}
-            pricing={pricing}
-            availableSchools={schools}
-        />
-    </ErrorBoundary>
-  );
+    return (
+        <ErrorBoundary>
+            <SchoolSystem 
+                schoolId={currentSchool.id}
+                schoolMetadata={currentSchool}
+                onSwitchSchool={setCurrentSchoolId}
+                onOpenSystemAdmin={() => setIsSystemAdmin(true)}
+                isCloudConnected={isCloudConnected}
+                onRegisterSchool={handleRegisterSchool}
+                onUpgradeSubscription={handleUpgradeSubscription}
+                pricing={pricing}
+                availableSchools={schools}
+            />
+        </ErrorBoundary>
+    );
 };
 
 export default App;
