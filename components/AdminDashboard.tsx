@@ -6,6 +6,7 @@ import InvoiceModal from './InvoiceModal';
 import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2, AlertTriangle, FileArchive, Link } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 import { sendActivationEmail } from '../services/emailService';
+import * as XLSX from 'xlsx';
 
 // --- Styles ---
 const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-400 text-sm font-medium";
@@ -200,10 +201,75 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activationCodeInput, setActivationCodeInput] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
 
-  // --- Noor Import Logic ---
+  // --- Excel Import Logic ---
   const handleNoorImportClick = () => { fileInputRef.current?.click(); };
-  const handleDownloadTemplate = () => { /* ... existing code ... */ };
-  const processNoorFile = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... existing code ... */ };
+  
+  const handleDownloadTemplate = () => { 
+      const wb = XLSX.utils.book_new();
+      const wsData = [
+          { "اسم الطالب": "مثال: محمد عبدالله", "رقم ولي الأمر": "0500000000", "الفصل": "أول أ" },
+          { "اسم الطالب": "مثال: خالد علي", "رقم ولي الأمر": "0555555555", "الفصل": "ثاني ب" }
+      ];
+      const ws = XLSX.utils.json_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(wb, ws, "Students");
+      XLSX.writeFile(wb, "madrasti_students_template.xlsx");
+  };
+
+  const processNoorFile = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setImportLoading(true);
+      try {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          
+          // Use 'any' type for flexible row data structure
+          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+          
+          const newStudents: Student[] = [];
+          
+          jsonData.forEach((row, index) => {
+              // Try to map various header names (Arabic/English/Variations)
+              const name = row['اسم الطالب'] || row['Name'] || row['name'] || row['Student Name'];
+              const phone = row['رقم ولي الأمر'] || row['Phone'] || row['Mobile'] || row['رقم الجوال'] || '';
+              const className = row['الفصل'] || row['Class'] || row['Grade'] || row['الصف'];
+
+              if (name) {
+                  // Attempt to find matching class ID by name
+                  let targetClassId = selectedClassId; // Default to currently selected
+                  if (className) {
+                      const foundClass = classes.find(c => c.name.trim() === className.toString().trim());
+                      if (foundClass) targetClassId = foundClass.id;
+                  }
+
+                  newStudents.push({
+                      id: `s_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+                      schoolId: schoolId,
+                      name: name.toString().trim(),
+                      parentPhone: phone.toString().trim(),
+                      classId: targetClassId || (classes.length > 0 ? classes[0].id : 'no_class'),
+                      absenceCount: 0
+                  });
+              }
+          });
+
+          if (newStudents.length > 0) {
+              onSetStudents([...students, ...newStudents]);
+              alert(`تم استيراد ${newStudents.length} طالب بنجاح.`);
+          } else {
+              alert('لم يتم العثور على بيانات طلاب صالحة. تأكد من أن الملف يحتوي على أعمدة: "اسم الطالب"، "الفصل"، "رقم ولي الأمر".');
+          }
+
+      } catch (error) {
+          console.error("Import Error:", error);
+          alert('حدث خطأ أثناء قراءة الملف. تأكد أنه ملف Excel صالح.');
+      } finally {
+          setImportLoading(false);
+          if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input to allow re-upload
+      }
+  };
 
   // ... (Other handlers remain unchanged)
   // Re-declare handleClearStudents etc. for completeness since they were inside scope
@@ -324,7 +390,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="w-full bg-slate-50 min-h-screen">
       {/* Hidden File Input for CSV Import */}
-      <input type="file" ref={fileInputRef} onChange={processNoorFile} className="hidden" accept=".csv,.txt" />
+      <input type="file" ref={fileInputRef} onChange={processNoorFile} className="hidden" accept=".csv,.xlsx,.xls" />
 
       {/* FREEZE BANNER */}
       {isFrozen && (
