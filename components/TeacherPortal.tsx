@@ -285,7 +285,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
             <div className={`bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slideDown ${showReportPreview ? '' : 'max-w-lg'}`}>
                 
                 {/* Modal Header */}
-                <div className="bg-slate-800 text-white p-5 flex justify-between items-center shrink-0">
+                <div className="bg-slate-800 text-white p-5 flex justify-between items-center shrink-0 no-print">
                     <div>
                         <h3 className="font-bold text-lg flex items-center gap-2">
                             <UserCheck size={20} className="text-emerald-400"/>
@@ -306,9 +306,9 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 </div>
                 
                 {/* Modal Content */}
-                <div className="flex-1 overflow-y-auto bg-slate-50">
+                <div className="flex-1 overflow-y-auto bg-slate-50 print:bg-white print:overflow-visible">
                     {showReportPreview ? (
-                        <div className="p-8 flex justify-center">
+                        <div className="p-8 flex justify-center page-container">
                             <AttendanceReportTemplate 
                                 schoolSettings={schoolSettings}
                                 classGroup={{name: selectedClassForAttendance.className, id: selectedClassForAttendance.classId}}
@@ -366,7 +366,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 </div>
 
                 {/* Modal Footer */}
-                <div className="p-4 border-t bg-white flex justify-between items-center">
+                <div className="p-4 border-t bg-white flex justify-between items-center no-print">
                     {!showReportPreview ? (
                         <>
                            <button 
@@ -397,7 +397,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
       {/* Messaging Modal */}
       {showMessagesModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
               <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[600px] animate-slideDown">
                   <div className="bg-indigo-600 text-white p-5 flex justify-between items-center">
                        <div>

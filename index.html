@@ -26,35 +26,86 @@
         
         html, body {
           width: 210mm;
-          height: 297mm;
+          height: auto;
           margin: 0;
           padding: 0;
-          background-color: white;
-          overflow: hidden; /* Prevent spillover to 2nd page */
+          background-color: white !important;
+          overflow: visible;
         }
 
         body {
-          /* Slight zoom out to ensure borders don't trigger new page in some browsers */
-          zoom: 98%; 
+          zoom: 100%; 
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
 
-        .no-print {
+        /* HIDE ALL UI ELEMENTS BY DEFAULT */
+        .no-print, 
+        button, 
+        input, 
+        select, 
+        nav, 
+        header, 
+        footer, 
+        .fixed.z-50:not(:has(.page-container)), /* Hide modals unless they contain the page */
+        [role="dialog"] > div:first-child /* Hide modal backdrops */
+        {
           display: none !important;
         }
 
-        /* Force single page container */
+        /* RESET LAYOUT FOR PRINTING CONTENT */
+        #root, .min-h-screen, .p-4, .p-8 {
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+
+        /* Handle Modals in Print: Make them static and remove shadows */
+        .fixed, .absolute {
+          position: static !important;
+          width: 100% !important;
+          height: auto !important;
+          background: white !important;
+          inset: auto !important;
+          transform: none !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+          border: none !important;
+        }
+
+        /* Allow specifically marked content to show */
         .page-container {
+          display: block !important;
+          width: 210mm !important;
+          height: 297mm !important; /* Force A4 height */
+          margin: 0 auto !important;
           page-break-after: always;
-          height: 297mm;
-          width: 210mm;
-          overflow: hidden;
-          position: relative;
+          overflow: hidden !important;
+          position: relative !important;
+          box-shadow: none !important;
+          border: none !important;
+          background: white !important;
         }
 
         .page-container:last-child {
           page-break-after: avoid;
+        }
+
+        /* Hide generic shadows and borders that look bad in print */
+        .shadow-xl, .shadow-2xl, .shadow-lg, .shadow-md, .shadow-sm {
+          box-shadow: none !important;
+        }
+        
+        /* Ensure table borders specific to the template remain */
+        .border-black {
+          border-color: black !important;
+        }
+        
+        /* Hide scrollbars */
+        ::-webkit-scrollbar {
+            display: none;
         }
       }
 

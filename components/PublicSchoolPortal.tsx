@@ -69,7 +69,7 @@ const PublicSchoolPortal: React.FC<PublicSchoolPortalProps> = ({
     <div className="min-h-screen bg-slate-50 font-sans" dir="rtl">
       
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white pb-16 pt-8 px-4 shadow-xl">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white pb-16 pt-8 px-4 shadow-xl no-print">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-5">
                 <div className="bg-white p-2 rounded-2xl h-24 w-24 flex items-center justify-center overflow-hidden shadow-lg">
@@ -93,7 +93,7 @@ const PublicSchoolPortal: React.FC<PublicSchoolPortalProps> = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 -mt-8">
+      <div className="max-w-7xl mx-auto px-4 -mt-8 no-print">
         
         {/* Controls Bar */}
         <div className="bg-white p-4 rounded-2xl shadow-lg border border-slate-100 flex flex-col md:flex-row items-center gap-4 mb-8">
@@ -151,7 +151,7 @@ const PublicSchoolPortal: React.FC<PublicSchoolPortalProps> = ({
               <div className="bg-slate-200 w-full md:max-w-5xl h-full md:h-[95vh] md:rounded-2xl flex flex-col shadow-2xl animate-slideDown overflow-hidden relative">
                   
                   {/* Modal Header */}
-                  <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0 z-10 shadow-md">
+                  <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0 z-10 shadow-md no-print">
                       <div>
                           <h3 className="font-bold text-lg flex items-center gap-2">
                               <FileText size={18} className="text-emerald-400"/>
@@ -169,7 +169,7 @@ const PublicSchoolPortal: React.FC<PublicSchoolPortalProps> = ({
                   </div>
 
                   {/* Plan Content */}
-                  <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center bg-slate-200">
+                  <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center bg-slate-200 print:bg-white print:overflow-visible">
                       <div className="origin-top scale-[0.6] sm:scale-[0.7] md:scale-90 lg:scale-100 transition-transform page-container bg-white shadow-2xl">
                         <WeeklyPlanTemplate 
                             classGroup={selectedClass}

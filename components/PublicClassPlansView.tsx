@@ -33,7 +33,7 @@ const PublicClassPlansView: React.FC<PublicClassPlansViewProps> = ({
     <div className="min-h-screen bg-slate-50 font-sans" dir="rtl">
       
       {/* Header */}
-      <div className="bg-slate-900 text-white pb-12 pt-8 px-4 shadow-lg">
+      <div className="bg-slate-900 text-white pb-12 pt-8 px-4 shadow-lg no-print">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-right">
             <div className="flex items-center gap-4">
                 <div className="bg-white p-2 rounded-xl h-20 w-20 flex items-center justify-center overflow-hidden">
@@ -57,7 +57,7 @@ const PublicClassPlansView: React.FC<PublicClassPlansViewProps> = ({
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 -mt-8">
+      <div className="max-w-5xl mx-auto px-4 -mt-8 no-print">
         
         {/* Search Bar */}
         <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-100 flex items-center gap-3 mb-8">
@@ -105,7 +105,7 @@ const PublicClassPlansView: React.FC<PublicClassPlansViewProps> = ({
               <div className="bg-slate-100 w-full md:max-w-5xl h-full md:h-[95vh] md:rounded-2xl flex flex-col shadow-2xl animate-slideDown overflow-hidden relative">
                   
                   {/* Modal Header */}
-                  <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0 z-10 shadow-md">
+                  <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0 z-10 shadow-md no-print">
                       <div>
                           <h3 className="font-bold text-lg flex items-center gap-2">
                               <Calendar size={18} className="text-emerald-400"/>
@@ -123,7 +123,7 @@ const PublicClassPlansView: React.FC<PublicClassPlansViewProps> = ({
                   </div>
 
                   {/* Plan Content */}
-                  <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center bg-slate-200">
+                  <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center bg-slate-200 print:bg-white print:overflow-visible">
                       <div className="origin-top scale-[0.6] sm:scale-[0.7] md:scale-90 lg:scale-100 transition-transform">
                         <WeeklyPlanTemplate 
                             classGroup={classGroup}
