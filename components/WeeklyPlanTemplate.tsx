@@ -72,15 +72,13 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
   return (
     // STRICT A4 PORTRAIT CONTAINER
     // Width: 210mm, Height: 297mm. 
-    // Flex-col to distribute height precisely.
-    // Removed margins between sections to ensure 100% height fit.
     <div className="bg-white text-black mx-auto overflow-hidden relative flex flex-col page-container"
-         style={{ width: '210mm', height: '297mm', padding: '5mm', boxSizing: 'border-box' }}>
+         style={{ width: '210mm', height: '297mm', padding: '10mm', boxSizing: 'border-box' }}>
       
-      {/* 1. HEADER SECTION (Fixed Height approx 12%) */}
-      <div className="flex justify-between items-start border-b-2 border-black pb-1 shrink-0 h-[12%]">
+      {/* 1. HEADER SECTION */}
+      <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-2 shrink-0">
         {/* Right Section */}
-        <div className="text-right space-y-0.5 text-[10px] font-bold flex-1 pt-1">
+        <div className="text-right space-y-1 text-xs font-bold w-1/3 pt-2">
           <p>{settings.ministryName}</p>
           <p>{settings.authorityName}</p>
           <p>{settings.directorateName}</p>
@@ -88,41 +86,56 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </div>
         
         {/* Center Section: Logo */}
-        <div className="flex flex-col items-center justify-center flex-1 h-full">
+        <div className="flex flex-col items-center justify-center w-1/3">
             <img 
               src={settings.logoUrl}
               alt="Logo" 
-              className="h-full max-h-[22mm] object-contain"
+              className="h-28 object-contain"
             />
         </div>
 
         {/* Left Section */}
-        <div className="text-left space-y-0.5 text-[10px] font-bold flex-1 pt-1 flex flex-col items-end">
-           <div className="text-right" dir="rtl">
-              <p>من: <span className="font-normal">{weekInfo.startDate}</span></p>
-              <p>إلى: <span className="font-normal">{weekInfo.endDate}</span></p>
-              <p>الأسبوع: <span className="font-normal">{weekInfo.weekNumber}</span></p>
-              <p>الصف: <span className="font-normal">{classGroup.name}</span></p>
+        <div className="text-left space-y-1 text-xs font-bold w-1/3 pt-2 flex flex-col items-end">
+           <div className="text-right w-full">
+              <div className="flex justify-end gap-2">
+                  <span className="font-normal">{weekInfo.startDate}</span>
+                  <span>:من</span>
+              </div>
+              <div className="flex justify-end gap-2">
+                  <span className="font-normal">{weekInfo.endDate}</span>
+                  <span>:إلى</span>
+              </div>
+              <div className="flex justify-end gap-2">
+                  <span className="font-normal">{weekInfo.weekNumber}</span>
+                  <span>:الأسبوع</span>
+              </div>
+              <div className="flex justify-end gap-2">
+                  <span className="font-normal">{classGroup.name}</span>
+                  <span>:الصف</span>
+              </div>
               {studentName ? (
-                  <p className="bg-gray-100 px-1 rounded mt-0.5 border border-gray-300">الطالب: <span className="font-bold">{studentName}</span></p>
+                  <div className="flex justify-end gap-2 mt-1">
+                      <span className="font-bold bg-gray-100 px-2 rounded border border-gray-200">{studentName}</span>
+                      <span>:الطالب</span>
+                  </div>
               ) : (
-                  <p className="text-[9px] text-gray-500 mt-0.5">{weekInfo.semester}</p>
+                  <p className="text-[10px] text-gray-500 mt-1 text-left">{weekInfo.semester}</p>
               )}
            </div>
         </div>
       </div>
 
-      {/* 2. MAIN TABLE SECTION (Flex Grow to fill space) */}
-      <div className="border-2 border-black flex-1 shrink-0 relative my-1">
+      {/* 2. MAIN TABLE SECTION */}
+      <div className="border-2 border-black flex-1 shrink-0 relative my-2">
         <table className="w-full h-full border-collapse text-center table-fixed">
           <thead>
-            <tr className="bg-gray-100 text-[9px] h-[3%]">
-              <th className="border border-black p-0.5 w-[4%] font-bold">اليوم</th>
-              <th className="border border-black p-0.5 w-[4%] font-bold">م</th>
-              <th className="border border-black p-0.5 w-[13%] font-bold">المادة</th>
-              <th className="border border-black p-0.5 w-[33%] font-bold">الدرس المقرر</th>
-              <th className="border border-black p-0.5 w-[28%] font-bold">الواجب</th>
-              <th className="border border-black p-0.5 w-[18%] font-bold">ملاحظات</th>
+            <tr className="bg-gray-100 text-[10px] h-[3%]">
+              <th className="border border-black p-1 w-[4%] font-bold">اليوم</th>
+              <th className="border border-black p-1 w-[4%] font-bold">م</th>
+              <th className="border border-black p-1 w-[13%] font-bold">المادة</th>
+              <th className="border border-black p-1 w-[33%] font-bold">الدرس المقرر</th>
+              <th className="border border-black p-1 w-[28%] font-bold">الواجب</th>
+              <th className="border border-black p-1 w-[18%] font-bold">ملاحظات</th>
             </tr>
           </thead>
           <tbody>
@@ -134,7 +147,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                 const isFirstPeriod = pIndex === 0;
 
                 return (
-                  <tr key={`${dIndex}-${period}`} className="text-[9px] print:text-[8px] h-[2.7%]">
+                  <tr key={`${dIndex}-${period}`} className="text-[10px] print:text-[9px] h-[2.7%]">
                     {/* Day Column: Merged vertically */}
                     {isFirstPeriod && (
                       <td 
@@ -168,7 +181,7 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                     </td>
                     
                     {/* Notes */}
-                    <td className="border border-black text-right px-1 truncate text-[8px]">
+                    <td className="border border-black text-right px-1 truncate text-[9px]">
                         {entry?.notes || ''}
                     </td>
                   </tr>
@@ -179,20 +192,20 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
         </table>
       </div>
 
-      {/* 3. FOOTER SECTION (Fixed Height approx 18%) */}
-      <div className="h-[18%] shrink-0 flex border-2 border-black">
+      {/* 3. FOOTER SECTION */}
+      <div className="h-[18%] shrink-0 flex border-2 border-black mt-1">
          {/* Right Section: General Messages */}
          <div className="w-1/2 border-l-2 border-black p-2 flex flex-col">
             <h4 className="font-bold text-[10px] mb-1 bg-gray-100 p-1 text-center border border-gray-300 rounded">رسائل وتوجيهات عامة</h4>
             {onUpdateSettings ? (
                 <textarea 
-                  className="w-full flex-1 resize-none text-[9px] border-none outline-none bg-transparent"
+                  className="w-full flex-1 resize-none text-[10px] border-none outline-none bg-transparent"
                   value={settings.footerNotesRight}
                   onChange={(e) => handleFooterChange('footerNotesRight', e.target.value)}
                   placeholder="اكتب التوجيهات هنا..."
                 />
             ) : (
-                <p className="whitespace-pre-wrap text-[9px] leading-relaxed">{settings.footerNotesRight}</p>
+                <p className="whitespace-pre-wrap text-[10px] leading-relaxed">{settings.footerNotesRight}</p>
             )}
          </div>
 
@@ -204,21 +217,21 @@ const WeeklyPlanTemplate: React.FC<WeeklyPlanTemplateProps> = ({
                 <div className="flex-1 z-10">
                     {onUpdateSettings ? (
                         <textarea 
-                        className="w-full h-full resize-none text-[9px] border-none outline-none bg-transparent/50 relative z-20"
+                        className="w-full h-full resize-none text-[10px] border-none outline-none bg-transparent/50 relative z-20"
                         value={settings.footerNotesLeft}
                         onChange={(e) => handleFooterChange('footerNotesLeft', e.target.value)}
                         placeholder="اكتب الملاحظات هنا..."
                         />
                     ) : (
-                        <p className="whitespace-pre-wrap text-[9px] leading-relaxed relative z-20">{settings.footerNotesLeft}</p>
+                        <p className="whitespace-pre-wrap text-[10px] leading-relaxed relative z-20">{settings.footerNotesLeft}</p>
                     )}
                 </div>
 
-                {/* Background Image / Upload - Removed opacity for clarity */}
+                {/* Background Image / Upload */}
                 {settings.footerNotesLeftImage && (
                     <img 
                         src={settings.footerNotesLeftImage} 
-                        className="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none" 
+                        className="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none opacity-80" 
                         alt="Footer decoration"
                     />
                 )}
