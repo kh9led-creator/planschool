@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar, Power, Link as LinkIcon, RefreshCcw, Eye, XCircle } from 'lucide-react';
+import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar, Power, Link as LinkIcon, RefreshCcw, Eye, XCircle, Mail, Smartphone, Lock } from 'lucide-react';
 import { SchoolSettings, PricingConfig } from '../types';
 import { saveSystemData, loadSystemData } from '../services/firebase';
 
@@ -37,6 +37,13 @@ interface PaymentSettings {
     currency: string;
 }
 
+interface SystemAdminProfile {
+    username: string;
+    password: string;
+    email: string;
+    phone: string;
+}
+
 interface SystemDashboardProps {
     schools: SchoolMetadata[];
     onSelectSchool: (id: string) => void;
@@ -69,6 +76,15 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
     const [localPricing, setLocalPricing] = useState<PricingConfig>(pricing);
     const [isSaving, setIsSaving] = useState(false);
     
+    // Admin Profile State
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [adminProfile, setAdminProfile] = useState<SystemAdminProfile>({
+        username: 'admin',
+        password: 'admin123',
+        email: '',
+        phone: ''
+    });
+
     // Financial Config State
     const [paymentConfig, setPaymentConfig] = useState<PaymentSettings>({
         bankName: '', accountName: '', iban: '', swiftCode: '',
@@ -80,15 +96,19 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
     useEffect(() => {
         const loadSettings = async () => {
             try {
-                const saved = await loadSystemData('payment_config');
-                if (saved) setPaymentConfig(saved);
+                const savedPayment = await loadSystemData('payment_config');
+                if (savedPayment) setPaymentConfig(savedPayment);
+                
+                const savedProfile = await loadSystemData('system_admin_profile');
+                if (savedProfile) setAdminProfile(savedProfile);
+
                 setLocalPricing(pricing);
             } catch (e) { console.error('Failed to load config', e); }
         };
         loadSettings();
     }, [pricing]);
 
-    // Handle Save
+    // Handle Save Payment
     const handleSavePaymentConfig = async () => {
         setIsSaving(true);
         try {
@@ -98,6 +118,24 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
             alert('تم تحديث إعدادات النظام بنجاح');
         } catch (e) {
             alert('فشل في الحفظ');
+        }
+        setIsSaving(false);
+    };
+
+    // Handle Save Profile
+    const handleSaveProfile = async () => {
+        if (!adminProfile.username || !adminProfile.password) {
+            alert('يجب إدخال اسم المستخدم وكلمة المرور');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await saveSystemData('system_admin_profile', adminProfile);
+            await new Promise(r => setTimeout(r, 800));
+            alert('تم تحديث بيانات المدير بنجاح. يرجى استخدام البيانات الجديدة عند تسجيل الدخول القادم.');
+            setShowProfileModal(false);
+        } catch (e) {
+            alert('فشل في تحديث الملف الشخصي');
         }
         setIsSaving(false);
     };
@@ -139,7 +177,7 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
             <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 h-20 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className="bg-slate-900 p-2.5 rounded-xl"><UserCog size={24} className="text-white"/></div>
+                        <div className="bg-slate-900 p-2.5 rounded-xl cursor-pointer" onClick={() => setShowProfileModal(true)} title="تعديل بيانات المدير"><UserCog size={24} className="text-white"/></div>
                         <div>
                             <h1 className="font-extrabold text-xl text-slate-900 leading-none">لوحة الإدارة المركزية</h1>
                             <p className="text-xs text-slate-500 mt-1 font-bold">نظام الخطط الأسبوعية - Admin Panel</p>
@@ -162,6 +200,9 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                                 <p className="text-lg font-extrabold text-amber-600">{stats.trial}</p>
                             </div>
                         </div>
+                        <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-2 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-all">
+                            <UserCog size={16}/> حسابي
+                        </button>
                         <button onClick={onLogout} className="flex items-center gap-2 text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2.5 rounded-xl transition-all border border-rose-100">
                             <LogOut size={16}/> تسجيل خروج
                         </button>
@@ -433,6 +474,82 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                             </button>
                         </div>
 
+                    </div>
+                )}
+
+                {/* --- ADMIN PROFILE MODAL --- */}
+                {showProfileModal && (
+                    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slideDown flex flex-col">
+                            <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-bold text-lg flex items-center gap-2"><UserCog size={20}/> إعدادات حساب المدير</h3>
+                                    <p className="text-slate-400 text-xs">تعديل بيانات الدخول للنظام</p>
+                                </div>
+                                <button onClick={() => setShowProfileModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"><XCircle size={20}/></button>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <label className={labelClass}>اسم المستخدم (للدخول)</label>
+                                    <input 
+                                        type="text" 
+                                        className={inputClass} 
+                                        value={adminProfile.username} 
+                                        onChange={(e) => setAdminProfile({...adminProfile, username: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>كلمة المرور الجديدة</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            className={inputClass} 
+                                            value={adminProfile.password} 
+                                            onChange={(e) => setAdminProfile({...adminProfile, password: e.target.value})}
+                                        />
+                                        <Lock className="absolute left-3 top-3.5 text-slate-400" size={16}/>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelClass}>البريد الإلكتروني</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="email" 
+                                                className={`${inputClass} pl-8`} 
+                                                value={adminProfile.email} 
+                                                onChange={(e) => setAdminProfile({...adminProfile, email: e.target.value})}
+                                                placeholder="للاستعادة"
+                                            />
+                                            <Mail className="absolute left-3 top-3.5 text-slate-400" size={16}/>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>رقم الجوال</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="tel" 
+                                                className={`${inputClass} pl-8`} 
+                                                value={adminProfile.phone} 
+                                                onChange={(e) => setAdminProfile({...adminProfile, phone: e.target.value})}
+                                                placeholder="للطوارئ"
+                                            />
+                                            <Smartphone className="absolute left-3 top-3.5 text-slate-400" size={16}/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 text-xs text-amber-800">
+                                    <p className="font-bold mb-1">تنبيه هام:</p>
+                                    عند تغيير اسم المستخدم أو كلمة المرور، سيتم تسجيل خروجك فوراً وستحتاج للدخول بالبيانات الجديدة.
+                                </div>
+                            </div>
+                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                                <button onClick={() => setShowProfileModal(false)} className="px-4 py-2 rounded-lg text-slate-500 font-bold hover:bg-slate-200 transition-colors text-sm">إلغاء</button>
+                                <button onClick={handleSaveProfile} disabled={isSaving} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-all text-sm flex items-center gap-2">
+                                    {isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} حفظ التغييرات
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense, Component }
 import PublicClassPlansView from './components/PublicClassPlansView';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket, Fingerprint, LockKeyhole } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket, Fingerprint, LockKeyhole, HelpCircle } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
@@ -76,15 +76,14 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
   }
-
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -545,6 +544,9 @@ const App: React.FC = () => {
     const [sysUsername, setSysUsername] = useState('');
     const [sysPassword, setSysPassword] = useState('');
     const [sysError, setSysError] = useState('');
+    const [showForgotPass, setShowForgotPass] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [isRecovering, setIsRecovering] = useState(false);
 
     // Initialization
     useEffect(() => {
@@ -681,13 +683,23 @@ const App: React.FC = () => {
         return false;
     };
 
-    const handleSystemLogin = (e: React.FormEvent) => {
+    const handleSystemLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setSysError('');
         
-        // Default System Credentials
-        // In a real app, this should be in Firebase Env or Auth
-        if (sysUsername === 'admin' && sysPassword === 'admin123') {
+        // Try to load custom profile from DB
+        let validUser = 'admin';
+        let validPass = 'admin123';
+
+        if (isCloudConnected) {
+            const profile = await loadSystemData('system_admin_profile');
+            if (profile && profile.username && profile.password) {
+                validUser = profile.username;
+                validPass = profile.password;
+            }
+        }
+        
+        if (sysUsername === validUser && sysPassword === validPass) {
             setIsSystemAdmin(true);
             setShowSystemLoginModal(false);
             setSysUsername('');
@@ -695,6 +707,35 @@ const App: React.FC = () => {
         } else {
             setSysError('بيانات الدخول غير صحيحة');
         }
+    };
+
+    const handleRecoverPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotEmail) return;
+        setIsRecovering(true);
+        
+        // In a real app, this would verify the email against the stored profile
+        // Here we simulate the process
+        await new Promise(r => setTimeout(r, 1500));
+        
+        if (isCloudConnected) {
+             const profile = await loadSystemData('system_admin_profile');
+             // If a specific email was set in settings, we could check it here.
+             // For now, we simulate sending to the entered email.
+             if (profile && profile.email && profile.email !== forgotEmail) {
+                 alert('البريد الإلكتروني غير مطابق للسجلات.');
+                 setIsRecovering(false);
+                 return;
+             }
+             // Send email logic (simulation)
+             await sendActivationEmail(forgotEmail, 'مدير النظام', 'RESET-1234', 'registration'); // reusing type for demo
+             alert(`تم إرسال تعليمات استعادة كلمة المرور إلى ${forgotEmail}`);
+             setShowForgotPass(false);
+        } else {
+             alert('لا يمكن استعادة كلمة المرور في الوضع غير المتصل بالإنترنت.');
+        }
+        
+        setIsRecovering(false);
     };
 
     // 1. System Admin View
@@ -825,7 +866,7 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slideDown border border-slate-700">
                         <div className="p-8 text-center relative">
-                            <button onClick={() => setShowSystemLoginModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
+                            <button onClick={() => { setShowSystemLoginModal(false); setShowForgotPass(false); }} className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
                                 <X size={20}/>
                             </button>
                             <div className="w-16 h-16 bg-slate-800 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-inner border border-slate-700">
@@ -835,50 +876,81 @@ const App: React.FC = () => {
                             <p className="text-slate-400 text-sm">الدخول بصلاحيات المدير العام</p>
                         </div>
                         
-                        <form onSubmit={handleSystemLogin} className="p-8 pt-0 space-y-5">
-                            {sysError && (
-                                <div className="bg-rose-500/10 text-rose-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-500/20">
-                                    <AlertOctagon size={16}/> {sysError}
+                        {!showForgotPass ? (
+                            <form onSubmit={handleSystemLogin} className="p-8 pt-0 space-y-5">
+                                {sysError && (
+                                    <div className="bg-rose-500/10 text-rose-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-500/20">
+                                        <AlertOctagon size={16}/> {sysError}
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 mr-1">اسم المستخدم</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
+                                            value={sysUsername}
+                                            onChange={e => setSysUsername(e.target.value)}
+                                            placeholder="admin"
+                                        />
+                                        <UserCog className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                    </div>
                                 </div>
-                            )}
-                            
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-400 mr-1">اسم المستخدم</label>
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
-                                        value={sysUsername}
-                                        onChange={e => setSysUsername(e.target.value)}
-                                        placeholder="admin"
-                                    />
-                                    <UserCog className="absolute left-3 top-3.5 text-slate-500" size={18}/>
-                                </div>
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-400 mr-1">كلمة المرور</label>
-                                <div className="relative">
-                                    <input 
-                                        type="password" 
-                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
-                                        value={sysPassword}
-                                        onChange={e => setSysPassword(e.target.value)}
-                                        placeholder="••••••••"
-                                    />
-                                    <Key className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 mr-1">كلمة المرور</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="password" 
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
+                                            value={sysPassword}
+                                            onChange={e => setSysPassword(e.target.value)}
+                                            placeholder="••••••••"
+                                        />
+                                        <Key className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <button type="submit" className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 group mt-2">
-                                <LockKeyhole size={20} className="group-hover:scale-110 transition-transform"/>
-                                تسجيل الدخول الآمن
-                            </button>
-                            
-                            <p className="text-center text-[10px] text-slate-600">
-                                Default: admin / admin123
-                            </p>
-                        </form>
+                                <button type="submit" className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 group mt-2">
+                                    <LockKeyhole size={20} className="group-hover:scale-110 transition-transform"/>
+                                    تسجيل الدخول الآمن
+                                </button>
+                                
+                                <div className="flex justify-between items-center text-[10px]">
+                                    <p className="text-slate-600">Default: admin / admin123</p>
+                                    <button type="button" onClick={() => setShowForgotPass(true)} className="text-emerald-500 hover:text-emerald-400 hover:underline">
+                                        نسيت كلمة المرور؟
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleRecoverPassword} className="p-8 pt-0 space-y-5 animate-fadeIn">
+                                <div className="text-center mb-2">
+                                    <HelpCircle className="mx-auto text-emerald-500 mb-2" size={24}/>
+                                    <p className="text-slate-400 text-xs">أدخل البريد الإلكتروني المسجل في إعدادات المدير لاستعادة كلمة المرور.</p>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 mr-1">البريد الإلكتروني</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="email" 
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
+                                            value={forgotEmail}
+                                            onChange={e => setForgotEmail(e.target.value)}
+                                            placeholder="email@example.com"
+                                        />
+                                        <Mail className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                    </div>
+                                </div>
+                                <button type="submit" disabled={isRecovering} className="w-full bg-slate-700 text-white py-3.5 rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {isRecovering ? <Loader2 className="animate-spin" size={18}/> : 'إرسال رابط الاستعادة'}
+                                </button>
+                                <button type="button" onClick={() => setShowForgotPass(false)} className="w-full text-slate-500 text-xs hover:text-white transition-colors">
+                                    عودة لتسجيل الدخول
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
