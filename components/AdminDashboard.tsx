@@ -207,8 +207,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleDownloadTemplate = () => { 
       const wb = XLSX.utils.book_new();
       const wsData = [
-          { "اسم الطالب": "مثال: محمد عبدالله", "رقم ولي الأمر": "0500000000", "الفصل": "أول أ" },
-          { "اسم الطالب": "مثال: خالد علي", "رقم ولي الأمر": "0555555555", "الفصل": "ثاني ب" }
+          { "اسم الطالب": "مثال: محمد عبدالله", "رقم ولي الأمر": "0500000000", "الفصل": "1", "رقم الصف": "الأول الابتدائي" },
+          { "اسم الطالب": "مثال: خالد علي", "رقم ولي الأمر": "0555555555", "الفصل": "2", "رقم الصف": "الأول الابتدائي" }
       ];
       const ws = XLSX.utils.json_to_sheet(wsData);
       XLSX.utils.book_append_sheet(wb, ws, "Students");
@@ -229,50 +229,90 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
           
           const newStudents: Student[] = [];
+          const newClassesToAdd: ClassGroup[] = [];
+          // Copy existing classes to keep track of what we have (including newly created ones in this loop)
+          const currentClasses = [...classes];
+
+          let createdClassesCount = 0;
           
           jsonData.forEach((row, index) => {
-              // Try to map various header names (Arabic/English/Variations)
+              // 1. Extract Name (Supports common headers)
               const name = row['اسم الطالب'] || row['Name'] || row['name'] || row['Student Name'];
-              const phone = row['رقم ولي الأمر'] || row['Phone'] || row['Mobile'] || row['رقم الجوال'] || '';
-              const className = row['الفصل'] || row['Class'] || row['Grade'] || row['الصف'];
-
+              
               if (name) {
-                  // Attempt to find matching class ID by name
-                  let targetClassId = selectedClassId; // Default to currently selected
-                  if (className) {
-                      // Normalize class name for comparison
-                      const normalizedImportName = className.toString().trim().toLowerCase();
-                      
-                      const foundClass = classes.find(c => 
-                          c.name.trim().toLowerCase() === normalizedImportName || 
-                          c.name.trim().toLowerCase().includes(normalizedImportName)
-                      );
-                      
-                      if (foundClass) targetClassId = foundClass.id;
+                  // 2. Extract and Clean Phone
+                  let phone = row['الجوال'] || row['رقم ولي الأمر'] || row['Phone'] || row['Mobile'] || '';
+                  phone = phone.toString().trim();
+                  // Smart Clean: Replace 966 start with 0
+                  if (phone.startsWith('966')) {
+                      phone = '0' + phone.substring(3);
                   }
 
-                  // Fallback: If no class selected or found, use "Unassigned" or similar logic?
-                  // For now, if no targetClassId, we default to current selected or first available.
-                  const finalClassId = targetClassId || (classes.length > 0 ? classes[0].id : '');
+                  // 3. Extract Class Info (Smart Detection)
+                  // Looks for "رقم الصف" (Grade Name) and "الفصل" (Section Number)
+                  const gradeName = row['رقم الصف'] || row['الصف'] || row['Grade'] || '';
+                  const sectionNum = row['الفصل'] || row['Class'] || row['Section'] || '';
+                  
+                  // Construct a unique Class Name: e.g., "الأول الابتدائي (1)"
+                  let targetClassName = '';
+                  if (gradeName && sectionNum) {
+                      targetClassName = `${gradeName} (${sectionNum})`;
+                  } else if (gradeName) {
+                      targetClassName = gradeName;
+                  } else if (sectionNum) {
+                      targetClassName = `فصل ${sectionNum}`;
+                  } else {
+                      // Fallback: If no class info, assume unassigned or skip
+                      // But for "Smart" import, let's try to put them in a generic class if totally missing
+                      targetClassName = 'طلاب مستجدين'; 
+                  }
 
-                  if (finalClassId) {
+                  // 4. Find or Create Class
+                  let targetClass = currentClasses.find(c => c.name.trim() === targetClassName.trim());
+
+                  if (!targetClass) {
+                      // Create new class automatically
+                      const newClassId = `c_imp_${Date.now()}_${createdClassesCount}_${Math.random().toString(36).substr(2, 4)}`;
+                      const newClassObj: ClassGroup = {
+                          id: newClassId,
+                          schoolId: schoolId,
+                          name: targetClassName,
+                          grade: gradeName || 'عام'
+                      };
+                      
+                      newClassesToAdd.push(newClassObj);
+                      currentClasses.push(newClassObj); // Add to local tracker for subsequent rows
+                      targetClass = newClassObj;
+                      createdClassesCount++;
+                  }
+
+                  // 5. Check for Student Duplicates (in existing list AND new list)
+                  const existsInCurrent = students.some(s => s.name === name && s.classId === targetClass!.id);
+                  const existsInNew = newStudents.some(s => s.name === name && s.classId === targetClass!.id);
+
+                  if (!existsInCurrent && !existsInNew) {
                       newStudents.push({
                           id: `s_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
                           schoolId: schoolId,
                           name: name.toString().trim(),
-                          parentPhone: phone.toString().trim(),
-                          classId: finalClassId,
+                          parentPhone: phone,
+                          classId: targetClass!.id,
                           absenceCount: 0
                       });
                   }
               }
           });
 
+          // Update State
+          if (newClassesToAdd.length > 0) {
+              onSetClasses([...classes, ...newClassesToAdd]);
+          }
+          
           if (newStudents.length > 0) {
               onSetStudents([...students, ...newStudents]);
-              alert(`تم استيراد ${newStudents.length} طالب بنجاح.`);
+              alert(`تمت العملية بذكاء:\n- تم استيراد ${newStudents.length} طالب.\n- تم إنشاء ${newClassesToAdd.length} فصل جديد تلقائياً.`);
           } else {
-              alert('لم يتم العثور على بيانات طلاب صالحة. تأكد من أن الملف يحتوي على أعمدة: "اسم الطالب"، "الفصل"، "رقم ولي الأمر".');
+              alert('لم يتم العثور على بيانات جديدة لاستيرادها (ربما البيانات مكررة أو الملف فارغ).');
           }
 
       } catch (error) {
