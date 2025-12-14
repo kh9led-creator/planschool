@@ -3,6 +3,7 @@ import WeeklyPlanTemplate from './components/WeeklyPlanTemplate';
 import TeacherPortal from './components/TeacherPortal';
 import AdminDashboard from './components/AdminDashboard';
 import SystemDashboard from './components/SystemDashboard'; // Imported standalone component
+import PublicClassPlansView from './components/PublicClassPlansView'; // New component
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
 import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter } from 'lucide-react';
@@ -17,7 +18,8 @@ const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-lg 
 enum ViewState {
   HOME,
   ADMIN,
-  TEACHER
+  TEACHER,
+  PUBLIC_CLASS // New View State for shared class links
 }
 
 // Updated Subscription Plans
@@ -274,6 +276,15 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
      }
   }, [schoolMetadata.name, schoolId]);
 
+  // Shared Class Logic Detection
+  useEffect(() => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedClassId = urlParams.get('classShare');
+      if (sharedClassId) {
+          setView(ViewState.PUBLIC_CLASS);
+      }
+  }, []);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -375,6 +386,29 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
               <p className="text-gray-600 font-bold">جاري تحميل بيانات المدرسة...</p>
           </div>
       )
+  }
+
+  // --- PUBLIC CLASS VIEW RENDER ---
+  if (view === ViewState.PUBLIC_CLASS) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedClassId = urlParams.get('classShare');
+      const targetClass = classes.find(c => c.id === sharedClassId);
+
+      if (!targetClass) {
+          return <div className="min-h-screen flex items-center justify-center text-gray-500 font-bold">عذراً، الرابط غير صحيح أو الفصل غير موجود.</div>
+      }
+
+      return (
+          <PublicClassPlansView 
+              schoolSettings={schoolSettings}
+              classGroup={targetClass}
+              students={students.filter(s => s.classId === sharedClassId)}
+              weekInfo={weekInfo}
+              schedule={schedule}
+              planEntries={planEntries}
+              subjects={subjects}
+          />
+      );
   }
 
   if (view === ViewState.HOME) {
@@ -734,8 +768,10 @@ const App: React.FC = () => {
           const targetSchool = schools.find(s => s.id === schoolIdParam);
           if (targetSchool) {
               setActiveSchoolId(schoolIdParam);
-              // Clean URL without refresh
-              window.history.replaceState({}, '', window.location.pathname);
+              // Clean URL without refresh if no classShare present
+              if (!params.get('classShare')) {
+                  window.history.replaceState({}, '', window.location.pathname);
+              }
           }
       }
   }, [appLoaded, schools]);
