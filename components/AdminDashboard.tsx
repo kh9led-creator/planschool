@@ -201,7 +201,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activationCodeInput, setActivationCodeInput] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
 
-  // --- Excel Import Logic ---
+  // --- Excel Import Logic (Enhanced for Provided File) ---
   const handleNoorImportClick = () => { fileInputRef.current?.click(); };
   
   const handleDownloadTemplate = () => { 
@@ -225,23 +225,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const workbook = XLSX.read(data);
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           
-          // Use 'any' type for flexible row data structure
-          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+          // Get Raw Data first to scan for header
+          const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+          
+          // Find the row index that contains "اسم الطالب" or "Student Name"
+          let headerRowIndex = 0;
+          for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+              if (rawData[i].some((cell: any) => 
+                  cell && (cell.toString().includes('اسم الطالب') || cell.toString().includes('Student Name') || cell.toString().includes('Name'))
+              )) {
+                  headerRowIndex = i;
+                  break;
+              }
+          }
+
+          // Use the detected header row to parse properly
+          // Note: If it's a semicolon CSV opened via XLSX, sometimes all data is in one column. 
+          // But XLSX usually handles it. If not, the mapping below handles finding the right property.
+          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { range: headerRowIndex });
           
           const newStudents: Student[] = [];
           const newClassesToAdd: ClassGroup[] = [];
-          // Copy existing classes to keep track of what we have (including newly created ones in this loop)
+          // Copy existing classes to keep track
           const currentClasses = [...classes];
 
           let createdClassesCount = 0;
           
           jsonData.forEach((row, index) => {
               // 1. Extract Name (Supports common headers)
-              const name = row['اسم الطالب'] || row['Name'] || row['name'] || row['Student Name'];
+              // Clean keys to handle potential whitespace around delimiters
+              const keys = Object.keys(row);
+              const getName = (k: string) => keys.find(key => key.trim() === k);
               
-              if (name) {
+              const name = row[getName('اسم الطالب') || ''] || row[getName('Name') || ''] || row['name'] || row['Student Name'];
+              
+              if (name && typeof name === 'string' && name.trim().length > 1) {
                   // 2. Extract and Clean Phone
-                  let phone = row['الجوال'] || row['رقم ولي الأمر'] || row['Phone'] || row['Mobile'] || '';
+                  let phone = row[getName('الجوال') || ''] || row[getName('رقم ولي الأمر') || ''] || row['Phone'] || row['Mobile'] || '';
                   phone = phone.toString().trim();
                   // Smart Clean: Replace 966 start with 0
                   if (phone.startsWith('966')) {
@@ -249,10 +269,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   }
 
                   // 3. Extract Class Info (Smart Detection)
-                  // Looks for "رقم الصف" (Grade Name) and "الفصل" (Section Number)
-                  const gradeName = row['رقم الصف'] || row['الصف'] || row['Grade'] || '';
-                  const sectionNum = row['الفصل'] || row['Class'] || row['Section'] || '';
+                  let gradeName = row[getName('رقم الصف') || ''] || row[getName('الصف') || ''] || row['Grade'] || '';
+                  const sectionNum = row[getName('الفصل') || ''] || row[getName('Class') || ''] || row['Section'] || '';
                   
+                  // Clean Grade Name (remove "_قسم عام" etc)
+                  gradeName = gradeName.toString().split('_')[0].trim();
+
                   // Construct a unique Class Name: e.g., "الأول الابتدائي (1)"
                   let targetClassName = '';
                   if (gradeName && sectionNum) {
@@ -262,8 +284,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   } else if (sectionNum) {
                       targetClassName = `فصل ${sectionNum}`;
                   } else {
-                      // Fallback: If no class info, assume unassigned or skip
-                      // But for "Smart" import, let's try to put them in a generic class if totally missing
                       targetClassName = 'طلاب مستجدين'; 
                   }
 
@@ -281,14 +301,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       };
                       
                       newClassesToAdd.push(newClassObj);
-                      currentClasses.push(newClassObj); // Add to local tracker for subsequent rows
+                      currentClasses.push(newClassObj); // Add to local tracker
                       targetClass = newClassObj;
                       createdClassesCount++;
                   }
 
-                  // 5. Check for Student Duplicates (in existing list AND new list)
-                  const existsInCurrent = students.some(s => s.name === name && s.classId === targetClass!.id);
-                  const existsInNew = newStudents.some(s => s.name === name && s.classId === targetClass!.id);
+                  // 5. Check for Student Duplicates
+                  const existsInCurrent = students.some(s => s.name === name.trim() && s.classId === targetClass!.id);
+                  const existsInNew = newStudents.some(s => s.name === name.trim() && s.classId === targetClass!.id);
 
                   if (!existsInCurrent && !existsInNew) {
                       newStudents.push({
@@ -312,15 +332,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onSetStudents([...students, ...newStudents]);
               alert(`تمت العملية بذكاء:\n- تم استيراد ${newStudents.length} طالب.\n- تم إنشاء ${newClassesToAdd.length} فصل جديد تلقائياً.`);
           } else {
-              alert('لم يتم العثور على بيانات جديدة لاستيرادها (ربما البيانات مكررة أو الملف فارغ).');
+              alert('لم يتم العثور على بيانات جديدة لاستيرادها. تأكد من صحة الملف أو أن الطلاب غير مسجلين مسبقاً.');
           }
 
       } catch (error) {
           console.error("Import Error:", error);
-          alert('حدث خطأ أثناء قراءة الملف. تأكد أنه ملف Excel صالح.');
+          alert('حدث خطأ أثناء قراءة الملف. تأكد أنه ملف Excel/CSV صالح.');
       } finally {
           setImportLoading(false);
-          if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input to allow re-upload
+          if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
       }
   };
 
