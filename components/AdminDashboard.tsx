@@ -553,13 +553,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 </div>
 
-                {/* Existing Setup Content */}
+                {/* Existing Setup Content - UPDATED LAYOUT */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Settings className="text-indigo-500"/> بيانات المدرسة</h3>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Settings className="text-indigo-500"/> بيانات ترويسة التقرير</h3>
                         <div className="space-y-4">
-                            <div><label className={labelModernClass}>اسم المدرسة</label><input type="text" className={inputModernClass} value={schoolSettings.schoolName} onChange={(e) => setSchoolSettings({...schoolSettings, schoolName: e.target.value})} /></div>
-                            <div><label className={labelModernClass}>الإدارة التعليمية</label><input type="text" className={inputModernClass} value={schoolSettings.directorateName} onChange={(e) => setSchoolSettings({...schoolSettings, directorateName: e.target.value})} /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={labelModernClass}>السطر الأول (الوزارة)</label>
+                                    <input type="text" className={inputModernClass} value={schoolSettings.ministryName} onChange={(e) => setSchoolSettings({...schoolSettings, ministryName: e.target.value})} placeholder="المملكة العربية السعودية" />
+                                </div>
+                                <div>
+                                    <label className={labelModernClass}>السطر الثاني (الجهة)</label>
+                                    <input type="text" className={inputModernClass} value={schoolSettings.authorityName} onChange={(e) => setSchoolSettings({...schoolSettings, authorityName: e.target.value})} placeholder="وزارة التعليم" />
+                                </div>
+                                <div>
+                                    <label className={labelModernClass}>السطر الثالث (الإدارة)</label>
+                                    <input type="text" className={inputModernClass} value={schoolSettings.directorateName} onChange={(e) => setSchoolSettings({...schoolSettings, directorateName: e.target.value})} placeholder="الإدارة العامة للتعليم..." />
+                                </div>
+                                <div>
+                                    <label className={labelModernClass}>السطر الرابع (المدرسة)</label>
+                                    <input type="text" className={inputModernClass} value={schoolSettings.schoolName} onChange={(e) => setSchoolSettings({...schoolSettings, schoolName: e.target.value})} placeholder="اسم المدرسة" />
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4 border-t border-slate-100">
+                                 <label className={labelModernClass}>رابط الشعار (Logo URL)</label>
+                                 <div className="flex gap-2">
+                                     <input type="text" className={`${inputModernClass} text-left`} dir="ltr" value={schoolSettings.logoUrl} onChange={(e) => setSchoolSettings({...schoolSettings, logoUrl: e.target.value})} placeholder="https://..." />
+                                     {schoolSettings.logoUrl && (
+                                         <div className="w-12 h-12 border border-slate-200 rounded-lg p-1 bg-white flex items-center justify-center shrink-0">
+                                             <img src={schoolSettings.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                         </div>
+                                     )}
+                                 </div>
+                            </div>
+
                             <button onClick={handleManualSaveSettings} className={`${btnPrimaryClass} w-full py-3 mt-4`}>{saveSuccess ? <><CheckCircle size={20}/> تم الحفظ!</> : <><Save size={20}/> حفظ الإعدادات</>}</button>
                         </div>
                     </div>
