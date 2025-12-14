@@ -352,7 +352,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
   const handleManualSaveSettings = () => { setSaveSuccess(true); setTimeout(() => setSaveSuccess(false), 3000); };
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
+  
+  // Logic to handle image upload for Logo
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setSchoolSettings({ ...schoolSettings, logoUrl: reader.result as string });
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const handleRemoveLogo = () => {
+      setSchoolSettings({ ...schoolSettings, logoUrl: '' });
+  };
+
   const handleAddSubject = () => { if(!subjectForm.name) return; onSetSubjects([...subjects, { id: `sub_${Date.now()}`, schoolId: schoolId, name: subjectForm.name, color: subjectForm.color }]); setSubjectForm({ name: '', color: 'bg-slate-50 border-slate-200 text-slate-800' }); };
   const handleDeleteSubject = (id: string) => { if(window.confirm('هل أنت متأكد من حذف هذه المادة؟')) onSetSubjects(subjects.filter(s => s.id !== id)); };
   const handleAddClass = () => { if(!newClassName) return; const newClass = { id: `c_${Date.now()}`, schoolId: schoolId, name: newClassName, grade: newClassGrade || 'عام' }; onAddClass(newClass); setNewClassName(''); setNewClassGrade(''); setSelectedClassId(newClass.id); };
@@ -665,14 +681,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                             
                             <div className="pt-4 border-t border-slate-100">
-                                 <label className={labelModernClass}>رابط الشعار (Logo URL)</label>
-                                 <div className="flex gap-2">
-                                     <input type="text" className={`${inputModernClass} text-left`} dir="ltr" value={schoolSettings.logoUrl} onChange={(e) => setSchoolSettings({...schoolSettings, logoUrl: e.target.value})} placeholder="https://..." />
-                                     {schoolSettings.logoUrl && (
-                                         <div className="w-12 h-12 border border-slate-200 rounded-lg p-1 bg-white flex items-center justify-center shrink-0">
-                                             <img src={schoolSettings.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
-                                         </div>
-                                     )}
+                                 <label className={labelModernClass}>شعار المدرسة (Logo)</label>
+                                 <div className="flex items-start gap-4">
+                                     {/* Preview Box */}
+                                     <div className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center bg-slate-50 relative overflow-hidden">
+                                         {schoolSettings.logoUrl ? (
+                                             <img src={schoolSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                                         ) : (
+                                             <ImageIcon className="text-slate-300" size={32} />
+                                         )}
+                                     </div>
+
+                                     {/* Actions */}
+                                     <div className="flex-1 space-y-2">
+                                         <label className="cursor-pointer bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 w-fit">
+                                             <UploadCloud size={18}/>
+                                             <span>رفع صورة الشعار</span>
+                                             <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                         </label>
+                                         <p className="text-xs text-slate-400">يفضل استخدام صورة مربعة بخلفية شفافة (PNG).</p>
+                                         
+                                         {schoolSettings.logoUrl && (
+                                             <button onClick={handleRemoveLogo} className="text-rose-500 text-xs font-bold flex items-center gap-1 hover:underline">
+                                                 <XCircle size={14}/> حذف الشعار
+                                             </button>
+                                         )}
+                                     </div>
                                  </div>
                             </div>
 
