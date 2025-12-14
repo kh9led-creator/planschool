@@ -3,7 +3,7 @@ import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, Archiv
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
 import AttendanceReportTemplate from './AttendanceReportTemplate';
 import InvoiceModal from './InvoiceModal';
-import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2, AlertTriangle, FileArchive, Link as LinkIcon } from 'lucide-react';
+import { Users, FileText, Calendar, Printer, Share2, UploadCloud, CheckCircle, XCircle, Plus, Trash2, Edit2, Save, Archive, History, Grid, BookOpen, Settings, Book, Eraser, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, LayoutDashboard, Search, X, Eye, Copy, User, Filter, BarChart3, CreditCard, Lock, Download, Loader2, AlertTriangle, FileArchive, Link as LinkIcon, Globe } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 import { sendActivationEmail } from '../services/emailService';
 import * as XLSX from 'xlsx';
@@ -586,29 +586,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
              <div className="animate-fadeIn space-y-6">
                 
                 {/* School Link Card - NEW */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
-                        <LinkIcon className="text-indigo-500" /> رابط الدخول المباشر للمدرسة
-                    </h3>
-                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="flex-1 bg-white border border-indigo-200 rounded-lg p-3 font-mono text-sm text-slate-600 text-left dir-ltr select-all">
-                                {window.location.origin}?school={schoolId}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                            <LinkIcon className="text-indigo-500" /> رابط الدخول المباشر للمدرسة
+                        </h3>
+                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1 bg-white border border-indigo-200 rounded-lg p-3 font-mono text-sm text-slate-600 text-left dir-ltr select-all truncate">
+                                    {window.location.origin}?school={schoolId}
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(`${window.location.origin}?school=${schoolId}`);
+                                        alert('تم نسخ الرابط بنجاح');
+                                    }}
+                                    className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm shrink-0"
+                                    title="نسخ الرابط"
+                                >
+                                    <Copy size={20} />
+                                </button>
                             </div>
-                            <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(`${window.location.origin}?school=${schoolId}`);
-                                    alert('تم نسخ الرابط بنجاح');
-                                }}
-                                className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                                title="نسخ الرابط"
-                            >
-                                <Copy size={20} />
-                            </button>
+                            <p className="text-xs text-indigo-500 mt-3 font-medium">
+                                هذا الرابط خاص بمدرستكم. شاركه مع المعلمين والإداريين للدخول المباشر.
+                            </p>
                         </div>
-                        <p className="text-xs text-indigo-500 mt-3 font-medium">
-                            هذا الرابط خاص بمدرستكم. شاركه مع المعلمين والإداريين للدخول المباشر دون الحاجة للبحث عن المدرسة.
-                        </p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                            <Globe className="text-emerald-500" /> رابط بوابة الخطط العامة
+                        </h3>
+                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1 bg-white border border-emerald-200 rounded-lg p-3 font-mono text-sm text-slate-600 text-left dir-ltr select-all truncate">
+                                    {window.location.origin}?school={schoolId}&public=true
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(`${window.location.origin}?school=${schoolId}&public=true`);
+                                        alert('تم نسخ رابط البوابة العامة بنجاح');
+                                    }}
+                                    className="bg-emerald-600 text-white p-3 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm shrink-0"
+                                    title="نسخ الرابط"
+                                >
+                                    <Copy size={20} />
+                                </button>
+                            </div>
+                            <p className="text-xs text-emerald-600 mt-3 font-medium">
+                                شارك هذا الرابط مع الطلاب وأولياء الأمور لاستعراض وطباعة الخطط (بدون تسجيل دخول).
+                            </p>
+                        </div>
                     </div>
                 </div>
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense } from 'reac
 import PublicClassPlansView from './components/PublicClassPlansView';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket, Fingerprint } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
@@ -13,6 +13,7 @@ const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
 const TeacherPortal = React.lazy(() => import('./components/TeacherPortal'));
 const SystemDashboard = React.lazy(() => import('./components/SystemDashboard'));
 const WeeklyPlanTemplate = React.lazy(() => import('./components/WeeklyPlanTemplate'));
+const PublicSchoolPortal = React.lazy(() => import('./components/PublicSchoolPortal'));
 
 // --- Styles ---
 const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-medium";
@@ -23,7 +24,8 @@ enum ViewState {
   HOME,
   ADMIN,
   TEACHER,
-  PUBLIC_CLASS
+  PUBLIC_CLASS,
+  PUBLIC_PORTAL
 }
 
 type SubscriptionPlan = 'trial' | 'quarterly' | 'annual' | string;
@@ -133,7 +135,6 @@ const GlobalLoader = () => (
 
 // --- 4. Enhanced Storage Hook ---
 function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isCloudEnabled: boolean): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
-  // Initialize state directly from localStorage if available (Blocking render for 1 tick but much faster perceived speed)
   const [value, setValue] = useState<T>(() => {
     try {
       const stickyValue = window.localStorage.getItem(`${schoolId}_${key}`);
@@ -148,35 +149,26 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Async Cloud Fetch (Background)
   useEffect(() => {
     let mounted = true;
-    
     const fetchCloud = async () => {
         if (!isCloudEnabled || !getDB()) {
             setIsLoaded(true);
             return;
         }
-        
-        // We allow the component to render with local data FIRST, then fetch cloud
         const cloudData = await loadSchoolData(schoolId, key);
         if (mounted) {
             if (cloudData) {
-                // Only update if cloud data exists
                 setValue(cloudData);
                 window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(cloudData));
             }
             setIsLoaded(true);
         }
     };
-    
-    // Small delay to prioritize UI painting
     setTimeout(fetchCloud, 10);
-    
     return () => { mounted = false; };
   }, [schoolId, key, isCloudEnabled]);
 
-  // Sync to LocalStorage immediately on change
   useEffect(() => {
     try {
       window.localStorage.setItem(`${schoolId}_${key}`, JSON.stringify(value));
@@ -185,180 +177,168 @@ function useSyncedState<T>(defaultValue: T, key: string, schoolId: string, isClo
     }
   }, [key, value, schoolId]);
 
-  // Sync to Cloud (Debounced)
   useEffect(() => {
     if (!isLoaded || !isCloudEnabled || !getDB()) return;
-
     const handler = setTimeout(() => {
         saveSchoolData(schoolId, key, value);
     }, 2000);
-
     return () => clearTimeout(handler);
   }, [key, value, schoolId, isLoaded, isCloudEnabled]);
 
   return [value, setValue, isLoaded];
 }
 
-// --- 5. School Directory Component (Modern Landing Page) ---
-interface SchoolDirectoryProps {
+// --- 5. SaaS Landing Page Component (No Directory) ---
+interface LandingPageProps {
     schools: SchoolMetadata[];
-    onSelectSchool: (id: string) => void;
+    onEnterSchool: (id: string) => void;
     onOpenSystemAdmin: () => void;
     onRegisterNew: () => void;
 }
 
-const SchoolDirectory: React.FC<SchoolDirectoryProps> = ({ schools, onSelectSchool, onOpenSystemAdmin, onRegisterNew }) => {
-    const [search, setSearch] = useState('');
-    const [foundSchools, setFoundSchools] = useState<SchoolMetadata[]>([]);
-    const [hasSearched, setHasSearched] = useState(false);
+const LandingPage: React.FC<LandingPageProps> = ({ schools, onEnterSchool, onOpenSystemAdmin, onRegisterNew }) => {
+    const [schoolCodeInput, setSchoolCodeInput] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const handleSearch = (e: React.FormEvent) => {
+    const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!search.trim()) {
-            setFoundSchools([]);
-            setHasSearched(false);
+        setErrorMsg('');
+        
+        if (!schoolCodeInput.trim()) {
+            setErrorMsg('الرجاء إدخال كود المدرسة');
             return;
         }
+
+        // Check if school exists in the loaded registry
+        const school = schools.find(s => s.id === schoolCodeInput.trim());
         
-        // Only find exact matches or very specific partials to maintain privacy
-        const results = schools.filter(s => 
-            (s.name.toLowerCase().includes(search.toLowerCase()) && s.isActive) || 
-            s.id === search.trim()
-        );
-        
-        setFoundSchools(results);
-        setHasSearched(true);
+        if (school) {
+            if (!school.isActive) {
+                setErrorMsg('عذراً، هذا النظام غير نشط حالياً.');
+                return;
+            }
+            onEnterSchool(school.id);
+        } else {
+            setErrorMsg('كود المدرسة غير صحيح. تأكد من الرابط أو الكود.');
+        }
     };
 
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans relative overflow-hidden" dir="rtl">
-            {/* Ambient Background */}
-            <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-indigo-50 to-white -z-10"></div>
-            <div className="absolute -top-20 -right-20 w-96 h-96 bg-purple-100 rounded-full blur-3xl opacity-50 -z-10"></div>
-            <div className="absolute top-40 -left-20 w-72 h-72 bg-blue-100 rounded-full blur-3xl opacity-50 -z-10"></div>
+            {/* Background Effects */}
+            <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-indigo-50/80 to-white -z-10"></div>
+            <div className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-purple-100/40 rounded-full blur-3xl -z-10 animate-pulse"></div>
+            <div className="absolute top-20 -left-20 w-[400px] h-[400px] bg-blue-100/40 rounded-full blur-3xl -z-10"></div>
 
-            {/* Header */}
-            <div className="max-w-7xl mx-auto w-full px-6 py-6 flex justify-between items-center z-50">
+            {/* Navbar */}
+            <nav className="max-w-7xl mx-auto w-full px-6 py-6 flex justify-between items-center z-50">
                 <div className="flex items-center gap-2 text-indigo-700">
                     <ShieldCheck size={32} />
                     <span className="font-extrabold text-xl tracking-tight text-slate-900">Madrasti Planner</span>
                 </div>
-                <button onClick={onOpenSystemAdmin} className="text-slate-400 hover:text-slate-600 transition-colors" title="إدارة النظام">
-                    <Power size={20}/>
-                </button>
-            </div>
+                <div className="flex gap-4 items-center">
+                    <button onClick={onRegisterNew} className="hidden md:flex bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors">
+                        ابدأ التجربة المجانية
+                    </button>
+                    <button onClick={onOpenSystemAdmin} className="text-slate-400 hover:text-slate-600 transition-colors p-2" title="إدارة النظام">
+                        <Power size={20}/>
+                    </button>
+                </div>
+            </nav>
 
-            {/* Main Content: Split Layout */}
-            <div className="flex-1 flex flex-col lg:flex-row items-center justify-center max-w-7xl mx-auto w-full px-6 gap-12 lg:gap-24">
+            {/* Hero Content */}
+            <div className="flex-1 flex flex-col lg:flex-row items-center justify-center max-w-7xl mx-auto w-full px-6 gap-12 lg:gap-24 pb-20">
                 
-                {/* Left: Value Prop */}
-                <div className="flex-1 text-center lg:text-right space-y-6">
-                    <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-sm font-bold border border-indigo-100 mb-2">
-                        <Rocket size={16}/> الإصدار الجديد 2.0
+                {/* Left: Value Proposition */}
+                <div className="flex-1 text-center lg:text-right space-y-8 animate-slideDown">
+                    <div className="inline-flex items-center gap-2 bg-white shadow-sm text-indigo-600 px-4 py-1.5 rounded-full text-xs font-bold border border-indigo-100 mb-2">
+                        <Rocket size={14}/> الإصدار السحابي 2.0
                     </div>
-                    <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 leading-tight">
+                    <h1 className="text-5xl lg:text-7xl font-extrabold text-slate-900 leading-[1.1]">
                         نظام إدارة <br/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">الخطط المدرسية</span> الذكي
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">الخطط المدرسية</span>
                     </h1>
                     <p className="text-lg text-slate-500 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                        منصة متكاملة للمدارس المستقلة لإدارة الخطط الأسبوعية، الجداول، والغياب. أنشئ نظام مدرستك الخاص في ثوانٍ وامتلك رابطاً خاصاً بك.
+                        منصة سحابية متكاملة تتيح للمدارس إدارة الخطط الأسبوعية، الجداول الدراسية، والغياب بكل سهولة. احصل على نظام خاص بمدرستك في دقيقة واحدة.
                     </p>
+                    
                     <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
                         <button 
                             onClick={onRegisterNew}
-                            className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2 group"
+                            className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 hover:-translate-y-1 flex items-center justify-center gap-3 group"
                         >
-                            ابدأ نسختك الخاصة مجاناً <ArrowLeft className="group-hover:-translate-x-1 transition-transform"/>
+                            أنشئ نظام مدرستك الآن <ArrowLeft className="group-hover:-translate-x-1 transition-transform"/>
                         </button>
+                        <a href="#features" className="bg-white text-slate-600 border border-slate-200 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                            تعرف على المزايا
+                        </a>
                     </div>
-                    <div className="pt-8 flex items-center justify-center lg:justify-start gap-8 text-slate-400 grayscale opacity-70">
-                        {/* Fake Logos for trust */}
-                        <div className="flex items-center gap-1 font-bold"><Shield size={18}/> آمن ومشفر</div>
-                        <div className="flex items-center gap-1 font-bold"><Cloud size={18}/> حفظ سحابي</div>
-                        <div className="flex items-center gap-1 font-bold"><CheckCircle size={18}/> دعم فني</div>
+
+                    <div className="pt-8 flex flex-wrap justify-center lg:justify-start gap-6 text-slate-400 text-sm font-bold opacity-80">
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><CheckCircle size={16} className="text-emerald-500"/> جداول ذكية</div>
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><CheckCircle size={16} className="text-emerald-500"/> متابعة الغياب</div>
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><CheckCircle size={16} className="text-emerald-500"/> طباعة PDF</div>
                     </div>
                 </div>
 
-                {/* Right: Access Portal */}
-                <div className="flex-1 w-full max-w-md">
-                    <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+                {/* Right: Login Box */}
+                <div className="flex-1 w-full max-w-md animate-fadeIn delay-100">
+                    <div className="bg-white rounded-[2rem] shadow-2xl shadow-indigo-100 border border-white p-8 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                         
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">الدخول للنظام</h2>
-                        <p className="text-sm text-slate-500 mb-6">هل مدرستك مسجلة؟ ابحث عنها للدخول.</p>
-
-                        <form onSubmit={handleSearch} className="space-y-4">
-                            <div className="relative">
-                                <input 
-                                    type="text" 
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-4 text-slate-800 font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all placeholder:text-slate-400 placeholder:font-normal"
-                                    placeholder="اسم المدرسة أو الكود التعريفي..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                                <Search className="absolute right-4 top-4 text-slate-400" size={20}/>
+                        <div className="mb-8 text-center">
+                            <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                                <LogIn size={32}/>
                             </div>
-                            <button type="submit" className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all">
-                                بحث ودخول
+                            <h2 className="text-2xl font-bold text-slate-800">تسجيل الدخول للنظام</h2>
+                            <p className="text-sm text-slate-500 mt-2">لديك حساب بالفعل؟ أدخل كود المدرسة للدخول.</p>
+                        </div>
+
+                        <form onSubmit={handleLoginSubmit} className="space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 mr-1">كود المدرسة التعريفي (School ID)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-4 text-slate-800 font-bold outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 transition-all placeholder:text-slate-300 placeholder:font-normal text-left dir-ltr font-mono tracking-wider"
+                                        placeholder="sch_..."
+                                        value={schoolCodeInput}
+                                        onChange={(e) => setSchoolCodeInput(e.target.value)}
+                                    />
+                                    <Fingerprint className="absolute right-4 top-4 text-slate-400" size={20}/>
+                                </div>
+                            </div>
+
+                            {errorMsg && (
+                                <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-100 animate-pulse">
+                                    <AlertOctagon size={16}/> {errorMsg}
+                                </div>
+                            )}
+
+                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-200">
+                                الدخول للوحة التحكم <ArrowLeft size={18}/>
                             </button>
                         </form>
 
-                        {/* Search Results Area */}
-                        {hasSearched && (
-                            <div className="mt-6 space-y-3 animate-fadeIn">
-                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">نتائج البحث</div>
-                                {foundSchools.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {foundSchools.map(school => (
-                                            <button 
-                                                key={school.id}
-                                                onClick={() => onSelectSchool(school.id)}
-                                                className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 p-4 rounded-xl flex items-center justify-between group transition-all"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-indigo-600 shadow-sm">
-                                                        <SchoolIcon size={20}/>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="font-bold text-slate-800">{school.name}</div>
-                                                        <div className="text-[10px] text-slate-500">نظام نشط</div>
-                                                    </div>
-                                                </div>
-                                                <div className="bg-white text-indigo-600 p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
-                                                    <LogIn size={16}/>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
-                                        <SchoolIcon className="mx-auto text-slate-300 mb-2" size={24}/>
-                                        <p className="text-sm text-slate-500 font-medium">لم يتم العثور على مدرسة بهذا الاسم.</p>
-                                        <p className="text-xs text-slate-400 mt-1">تأكد من الاسم أو قم بإنشاء مدرسة جديدة.</p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        
-                        {!hasSearched && (
-                             <div className="mt-6 pt-6 border-t border-slate-50 text-center">
-                                 <p className="text-xs text-slate-400">
-                                     يتم الدخول عادةً عبر الرابط المباشر الذي يرسله مدير المدرسة.
-                                 </p>
-                             </div>
-                        )}
+                        <div className="mt-8 pt-6 border-t border-slate-50 text-center">
+                            <p className="text-xs text-slate-400 mb-2">ليس لديك كود مدرسة؟</p>
+                            <button onClick={onRegisterNew} className="text-indigo-600 font-bold text-sm hover:underline">
+                                سجل مدرستك الآن واحصل على كود خاص
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <footer className="w-full py-6 text-center text-slate-400 text-xs font-medium">
+            <footer className="w-full py-8 text-center text-slate-400 text-xs font-medium border-t border-slate-100 bg-slate-50/50">
                 &copy; {new Date().getFullYear()} Madrasti Planner System. All rights reserved.
             </footer>
         </div>
     );
 };
 
-// --- 6. School System Logic (Specific School Context) ---
+// --- 6. School System Logic (UNCHANGED logic, just layout context) ---
+// (Keeping the internal logic of SchoolSystem as is, just ensuring it receives correct props)
 interface SchoolSystemProps {
   schoolId: string;
   schoolMetadata: SchoolMetadata; 
@@ -376,14 +356,10 @@ interface SchoolSystemProps {
 const SchoolSystem: React.FC<SchoolSystemProps> = ({ 
   schoolId, 
   schoolMetadata, 
-  onSwitchSchool,
   onExitSchool,
-  onOpenSystemAdmin,
   isCloudConnected,
-  onRegisterSchool,
   onUpgradeSubscription,
   pricing,
-  availableSchools,
   initialView = ViewState.HOME
 }) => {
   const [view, setView] = useState<ViewState>(initialView);
@@ -393,53 +369,42 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   const [loginError, setLoginError] = useState('');
   
   // Data States
-  const [schoolSettings, setSchoolSettings, l1] = useSyncedState<SchoolSettings>({...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 'settings_v1', schoolId, isCloudConnected);
-  const [weekInfo, setWeekInfo, l2] = useSyncedState<WeekInfo>(INITIAL_WEEK_INFO, 'week_v1', schoolId, isCloudConnected);
-  const [subjects, setSubjects, l3] = useSyncedState<Subject[]>([], 'subjects_v1', schoolId, isCloudConnected);
-  const [classes, setClasses, l4] = useSyncedState<ClassGroup[]>([], 'classes_v1', schoolId, isCloudConnected);
-  const [schedule, setSchedule, l5] = useSyncedState<ScheduleSlot[]>([], 'schedule_v1', schoolId, isCloudConnected);
-  const [students, setStudents, l6] = useSyncedState<Student[]>([], 'students_v1', schoolId, isCloudConnected);
-  const [teachers, setTeachers, l7] = useSyncedState<Teacher[]>([], 'teachers_v1', schoolId, isCloudConnected);
-  const [planEntries, setPlanEntries, l8] = useSyncedState<PlanEntry[]>([], 'plans_v1', schoolId, isCloudConnected);
-  const [archivedPlans, setArchivedPlans, l9] = useSyncedState<ArchivedPlan[]>([], 'archives_v1', schoolId, isCloudConnected);
-  const [attendanceRecords, setAttendanceRecords, l10] = useSyncedState<AttendanceRecord[]>([], 'attendance_v1', schoolId, isCloudConnected);
-  const [messages, setMessages, l11] = useSyncedState<Message[]>([], 'messages_v1', schoolId, isCloudConnected);
-  const [archivedAttendanceLogs, setArchivedAttendanceLogs, l12] = useSyncedState<ArchivedAttendance[]>([], 'attendance_archives_v1', schoolId, isCloudConnected);
+  const [schoolSettings, setSchoolSettings] = useSyncedState<SchoolSettings>({...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 'settings_v1', schoolId, isCloudConnected);
+  const [weekInfo, setWeekInfo] = useSyncedState<WeekInfo>(INITIAL_WEEK_INFO, 'week_v1', schoolId, isCloudConnected);
+  const [subjects, setSubjects] = useSyncedState<Subject[]>([], 'subjects_v1', schoolId, isCloudConnected);
+  const [classes, setClasses] = useSyncedState<ClassGroup[]>([], 'classes_v1', schoolId, isCloudConnected);
+  const [schedule, setSchedule] = useSyncedState<ScheduleSlot[]>([], 'schedule_v1', schoolId, isCloudConnected);
+  const [students, setStudents] = useSyncedState<Student[]>([], 'students_v1', schoolId, isCloudConnected);
+  const [teachers, setTeachers] = useSyncedState<Teacher[]>([], 'teachers_v1', schoolId, isCloudConnected);
+  const [planEntries, setPlanEntries] = useSyncedState<PlanEntry[]>([], 'plans_v1', schoolId, isCloudConnected);
+  const [archivedPlans, setArchivedPlans] = useSyncedState<ArchivedPlan[]>([], 'archives_v1', schoolId, isCloudConnected);
+  const [attendanceRecords, setAttendanceRecords] = useSyncedState<AttendanceRecord[]>([], 'attendance_v1', schoolId, isCloudConnected);
+  const [messages, setMessages] = useSyncedState<Message[]>([], 'messages_v1', schoolId, isCloudConnected);
+  const [archivedAttendanceLogs, setArchivedAttendanceLogs] = useSyncedState<ArchivedAttendance[]>([], 'attendance_archives_v1', schoolId, isCloudConnected);
 
-  // Even if cloud is loading, we can show the UI if we have local data. 
-  // We don't block render on 'l1...l12' anymore unless it's a critical first-time load with no local data.
-  
   // Handle Shared Class Link
   useEffect(() => {
       const urlParams = new URLSearchParams(window.location.search);
       const sharedClassId = urlParams.get('classShare');
       if (sharedClassId && initialView !== ViewState.PUBLIC_CLASS) {
-          // Verify class exists
           const cls = classes.find(c => c.id === sharedClassId);
-          if (cls) {
-              setView(ViewState.PUBLIC_CLASS);
-          }
+          if (cls) setView(ViewState.PUBLIC_CLASS);
       }
   }, [classes, initialView]);
 
   const handleLogin = (e: React.FormEvent) => {
       e.preventDefault();
       setLoginError('');
-
-      // Admin Login
       if (username === schoolMetadata.adminUsername && password === schoolMetadata.adminPassword) {
           setView(ViewState.ADMIN);
           return;
       }
-
-      // Teacher Login
       const teacher = teachers.find(t => t.username === username && (t.password === password || (!t.password && password === '')));
       if (teacher) {
           setSelectedTeacherId(teacher.id);
           setView(ViewState.TEACHER);
           return;
       }
-
       setLoginError('بيانات الدخول غير صحيحة');
   };
 
@@ -447,139 +412,69 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
   const sharedClassId = new URLSearchParams(window.location.search).get('classShare');
   const sharedClass = classes.find(c => c.id === sharedClassId);
 
-  // PUBLIC VIEW
+  // VIEW RENDERING
   if (view === ViewState.PUBLIC_CLASS && sharedClass) {
+      return <PublicClassPlansView schoolSettings={schoolSettings} classGroup={sharedClass} students={students.filter(s => s.classId === sharedClass.id)} weekInfo={weekInfo} schedule={schedule} planEntries={planEntries} subjects={subjects} />;
+  }
+
+  if (view === ViewState.PUBLIC_PORTAL) {
       return (
-          <PublicClassPlansView 
-              schoolSettings={schoolSettings}
-              classGroup={sharedClass}
-              students={students.filter(s => s.classId === sharedClass.id)}
-              weekInfo={weekInfo}
-              schedule={schedule}
-              planEntries={planEntries}
-              subjects={subjects}
-          />
+        <Suspense fallback={<GlobalLoader />}>
+          <PublicSchoolPortal schoolSettings={schoolSettings} classes={classes} weekInfo={weekInfo} schedule={schedule} planEntries={planEntries} subjects={subjects} />
+        </Suspense>
       );
   }
 
-  // ADMIN VIEW - Lazy Loaded
   if (view === ViewState.ADMIN) {
       return (
           <div className="relative">
-              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج">
-                  <LogOut size={20}/>
-              </button>
+              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج"><LogOut size={20}/></button>
               <Suspense fallback={<GlobalLoader />}>
-                <AdminDashboard 
-                    schoolId={schoolId}
-                    schoolMetadata={schoolMetadata}
-                    classes={classes}
-                    onAddClass={c => setClasses([...classes, c])}
-                    onSetClasses={setClasses}
-                    weekInfo={weekInfo}
-                    setWeekInfo={setWeekInfo}
-                    schoolSettings={schoolSettings}
-                    setSchoolSettings={setSchoolSettings}
-                    schedule={schedule}
-                    onUpdateSchedule={slot => {
-                        const others = schedule.filter(s => !(s.dayIndex === slot.dayIndex && s.period === slot.period && s.classId === slot.classId));
-                        setSchedule([...others, slot]);
-                    }}
-                    planEntries={planEntries}
-                    teachers={teachers}
-                    onAddTeacher={t => setTeachers([...teachers, t])}
-                    onUpdateTeacher={t => setTeachers(teachers.map(x => x.id === t.id ? t : x))}
-                    onDeleteTeacher={id => setTeachers(teachers.filter(x => x.id !== id))}
-                    students={students}
-                    onSetStudents={setStudents}
-                    subjects={subjects}
-                    onSetSubjects={setSubjects}
-                    onArchivePlan={(name, w, e) => setArchivedPlans([...archivedPlans, {id: Date.now().toString(), schoolId, name, className: name.split(' - ')[0], archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: w, entries: e}])}
-                    onClearPlans={() => setPlanEntries([])}
-                    archivedPlans={archivedPlans}
-                    onDeleteArchive={id => setArchivedPlans(archivedPlans.filter(a => a.id !== id))}
-                    attendanceRecords={attendanceRecords}
-                    onMarkAttendance={r => {
-                        const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date));
-                        setAttendanceRecords([...others, r]);
-                    }}
-                    messages={messages}
-                    onSendMessage={m => setMessages([...messages, m])}
-                    onRenewSubscription={onUpgradeSubscription}
-                    pricing={pricing}
-                    onResetSystem={() => {
-                        setClasses([]); setSubjects([]); setStudents([]); setTeachers([]); setSchedule([]); setPlanEntries([]); setAttendanceRecords([]); setArchivedPlans([]); setArchivedAttendanceLogs([]); setMessages([]);
-                    }}
-                    archivedAttendanceLogs={archivedAttendanceLogs}
-                    onArchiveAttendance={log => setArchivedAttendanceLogs([...archivedAttendanceLogs, log])}
-                    onDeleteAttendanceArchive={id => setArchivedAttendanceLogs(archivedAttendanceLogs.filter(a => a.id !== id))}
-                />
+                <AdminDashboard schoolId={schoolId} schoolMetadata={schoolMetadata} classes={classes} onAddClass={c => setClasses([...classes, c])} onSetClasses={setClasses} weekInfo={weekInfo} setWeekInfo={setWeekInfo} schoolSettings={schoolSettings} setSchoolSettings={setSchoolSettings} schedule={schedule} onUpdateSchedule={slot => { const others = schedule.filter(s => !(s.dayIndex === slot.dayIndex && s.period === slot.period && s.classId === slot.classId)); setSchedule([...others, slot]); }} planEntries={planEntries} teachers={teachers} onAddTeacher={t => setTeachers([...teachers, t])} onUpdateTeacher={t => setTeachers(teachers.map(x => x.id === t.id ? t : x))} onDeleteTeacher={id => setTeachers(teachers.filter(x => x.id !== id))} students={students} onSetStudents={setStudents} subjects={subjects} onSetSubjects={setSubjects} onArchivePlan={(name, w, e) => setArchivedPlans([...archivedPlans, {id: Date.now().toString(), schoolId, name, className: name.split(' - ')[0], archivedDate: new Date().toLocaleDateString('ar-SA'), weekInfo: w, entries: e}])} onClearPlans={() => setPlanEntries([])} archivedPlans={archivedPlans} onDeleteArchive={id => setArchivedPlans(archivedPlans.filter(a => a.id !== id))} attendanceRecords={attendanceRecords} onMarkAttendance={r => { const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date)); setAttendanceRecords([...others, r]); }} messages={messages} onSendMessage={m => setMessages([...messages, m])} onRenewSubscription={onUpgradeSubscription} pricing={pricing} onResetSystem={() => { setClasses([]); setSubjects([]); setStudents([]); setTeachers([]); setSchedule([]); setPlanEntries([]); setAttendanceRecords([]); setArchivedPlans([]); setArchivedAttendanceLogs([]); setMessages([]); }} archivedAttendanceLogs={archivedAttendanceLogs} onArchiveAttendance={log => setArchivedAttendanceLogs([...archivedAttendanceLogs, log])} onDeleteAttendanceArchive={id => setArchivedAttendanceLogs(archivedAttendanceLogs.filter(a => a.id !== id))} />
               </Suspense>
           </div>
       );
   }
 
-  // TEACHER VIEW - Lazy Loaded
   if (view === ViewState.TEACHER && activeTeacher) {
       return (
           <div className="relative">
-              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج">
-                  <LogOut size={20}/>
-              </button>
+              <button onClick={() => setView(ViewState.HOME)} className="fixed top-4 left-4 z-[100] bg-rose-500 text-white p-2 rounded-full shadow-lg hover:bg-rose-600 transition-colors" title="تسجيل خروج"><LogOut size={20}/></button>
               <Suspense fallback={<GlobalLoader />}>
-                <TeacherPortal 
-                    teacher={activeTeacher}
-                    schedule={schedule}
-                    existingEntries={planEntries}
-                    weekInfo={weekInfo}
-                    onSaveEntry={e => {
-                        const others = planEntries.filter(x => !(x.dayIndex === e.dayIndex && x.period === e.period && x.classId === e.classId));
-                        setPlanEntries([...others, e]);
-                    }}
-                    subjects={subjects}
-                    students={students}
-                    classes={classes}
-                    attendanceRecords={attendanceRecords}
-                    onMarkAttendance={r => {
-                        const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date));
-                        setAttendanceRecords([...others, r]);
-                    }}
-                    messages={messages}
-                    onSendMessage={m => setMessages([...messages, m])}
-                    schoolSettings={schoolSettings}
-                />
+                <TeacherPortal teacher={activeTeacher} schedule={schedule} existingEntries={planEntries} weekInfo={weekInfo} onSaveEntry={e => { const others = planEntries.filter(x => !(x.dayIndex === e.dayIndex && x.period === e.period && x.classId === e.classId)); setPlanEntries([...others, e]); }} subjects={subjects} students={students} classes={classes} attendanceRecords={attendanceRecords} onMarkAttendance={r => { const others = attendanceRecords.filter(x => !(x.studentId === r.studentId && x.date === r.date)); setAttendanceRecords([...others, r]); }} messages={messages} onSendMessage={m => setMessages([...messages, m])} schoolSettings={schoolSettings} />
               </Suspense>
           </div>
       );
   }
 
-  // SCHOOL LOGIN VIEW (Independent Feeling)
+  // SCHOOL LOGIN VIEW (Standard SaaS Login)
   return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden" dir="rtl">
+          {/* Background */}
+          <div className="absolute top-0 left-0 w-full h-1/2 bg-slate-900 -z-10"></div>
           
-          {/* Top Bar - Clean, just exit button */}
           <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20">
               <div className="flex items-center gap-2 text-white/50">
                    <ShieldCheck size={20}/>
-                   <span className="text-xs font-mono">نظام إدارة الخطط المدرسية</span>
+                   <span className="text-xs font-mono">ID: {schoolMetadata.id}</span>
               </div>
               <button onClick={onExitSchool} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 backdrop-blur-sm border border-white/10 transition-all">
-                  <LayoutGrid size={16}/> بوابة النظام
+                  <Globe size={16}/> الصفحة الرئيسية
               </button>
           </div>
 
           <div className="w-full max-w-md relative z-10 animate-slideDown">
-              <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
-                  <div className="p-8 text-center bg-white relative">
-                      <div className="w-24 h-24 bg-slate-50 rounded-full mx-auto mb-4 flex items-center justify-center shadow-inner border border-slate-100">
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+                  <div className="p-8 text-center bg-white relative border-b border-slate-100">
+                      <div className="w-20 h-20 bg-indigo-50 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-inner">
                           {schoolSettings.logoUrl ? (
-                              <img src={schoolSettings.logoUrl} alt="Logo" className="w-16 h-16 object-contain"/>
+                              <img src={schoolSettings.logoUrl} alt="Logo" className="w-14 h-14 object-contain"/>
                           ) : (
-                              <SchoolIcon size={40} className="text-indigo-600"/>
+                              <SchoolIcon size={32} className="text-indigo-600"/>
                           )}
                       </div>
-                      <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{schoolMetadata.name}</h1>
-                      <p className="text-slate-500 text-sm">تسجيل الدخول للنظام</p>
+                      <h1 className="text-xl font-extrabold text-slate-900 mb-1">{schoolMetadata.name}</h1>
+                      <p className="text-slate-500 text-sm font-medium">بوابة إدارة المدرسة</p>
                   </div>
                   
                   <form onSubmit={handleLogin} className="p-8 space-y-5">
@@ -595,7 +490,6 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                               <input 
                                   type="text" 
                                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-bold placeholder:font-normal"
-                                  placeholder="أدخل اسم المستخدم"
                                   value={username}
                                   onChange={e => setUsername(e.target.value)}
                               />
@@ -609,7 +503,6 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                               <input 
                                   type="password" 
                                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pl-10 outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-bold placeholder:font-normal"
-                                  placeholder="••••••••"
                                   value={password}
                                   onChange={e => setPassword(e.target.value)}
                               />
@@ -621,15 +514,15 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                           <LogIn size={20} className="group-hover:translate-x-1 transition-transform"/>
                           تسجيل الدخول
                       </button>
-
                   </form>
               </div>
-              <p className="text-center text-slate-500 text-xs mt-6 font-medium">جميع الحقوق محفوظة &copy; {new Date().getFullYear()}</p>
+              <p className="text-center text-slate-400/50 text-xs mt-6 font-medium">System v2.0 &copy; {new Date().getFullYear()}</p>
           </div>
       </div>
   );
 };
 
+// --- APP COMPONENT ---
 const App: React.FC = () => {
     // System State
     const [schools, setSchools] = useState<SchoolMetadata[]>([]);
@@ -639,13 +532,13 @@ const App: React.FC = () => {
     const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 100, annual: 300, currency: 'SAR' });
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     
-    // Register Form State (Moved to App level for modal)
+    // Register Form
     const [regForm, setRegForm] = useState({ name: '', email: '', phone: '', username: '', password: '' });
     const [isRegistering, setIsRegistering] = useState(false);
 
-    // Optimized Init Logic: Local First
+    // Initialization
     useEffect(() => {
-        // 1. Immediate Local Load
+        // 1. Local Load
         const localSchools = localStorage.getItem('system_schools');
         let initialSchools: SchoolMetadata[] = [];
         
@@ -654,41 +547,19 @@ const App: React.FC = () => {
                 initialSchools = JSON.parse(localSchools);
                 setSchools(initialSchools);
             } catch(e) {}
-        } else {
-            // Default demo data if absolutely nothing exists
-            initialSchools = [{
-                id: 'school_demo',
-                name: 'مدرسة تجريبية',
-                createdAt: new Date().toISOString(),
-                isActive: true,
-                subscriptionEnd: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
-                plan: 'trial',
-                licenseKey: 'DEMO-KEY',
-                managerPhone: '',
-                adminUsername: 'admin',
-                adminPassword: '123',
-                activationCode: '1234',
-                isPaid: false
-            }];
-            setSchools(initialSchools);
         }
 
-        // 2. Determine View based on URL (Immediate)
+        // 2. URL Params check
         const urlParams = new URLSearchParams(window.location.search);
         const urlSchoolId = urlParams.get('school');
         const urlAdmin = urlParams.get('admin');
 
-        if (urlAdmin) {
-            setIsSystemAdmin(true);
-        } else if (urlSchoolId) {
-            const schoolExists = initialSchools.find(s => s.id === urlSchoolId);
-            if (schoolExists) {
-                setCurrentSchoolId(urlSchoolId);
-            }
-        }
+        if (urlAdmin) setIsSystemAdmin(true);
+        else if (urlSchoolId) setCurrentSchoolId(urlSchoolId);
 
-        // 3. Cloud Sync (Background)
+        // 3. Cloud Sync
         const syncCloud = async () => {
+            // Environment variables are loaded automatically by Vite
             const config: FirebaseConfig = {
                 apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
                 authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -705,23 +576,19 @@ const App: React.FC = () => {
                 const cloudSchools = await loadSystemData('schools_registry');
                 if (cloudSchools && Array.isArray(cloudSchools) && cloudSchools.length > 0) {
                     setSchools(cloudSchools);
-                    // Update URL context if needed
+                    // Re-check URL param against cloud data
                     if (urlSchoolId && cloudSchools.find(s => s.id === urlSchoolId)) {
                         setCurrentSchoolId(urlSchoolId);
                     }
                 }
-                
                 const cloudPricing = await loadSystemData('pricing_config');
                 if (cloudPricing) setPricing(cloudPricing);
             }
         };
-
-        // Defer cloud sync slightly to allow main thread to render local data first
         setTimeout(syncCloud, 50);
-
     }, []);
 
-    // Persist Registry (Debounced)
+    // Persist Registry
     useEffect(() => {
         const handler = setTimeout(() => {
             if (schools.length > 0) {
@@ -737,14 +604,16 @@ const App: React.FC = () => {
 
     const handleRegisterSchool = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        
         if (isRegistering) return;
         setIsRegistering(true);
 
         const data = regForm;
         
+        // Generate a reasonably short, unique ID
+        const newId = `sch_${Math.random().toString(36).substr(2, 6)}`;
+
         const newSchool: SchoolMetadata = {
-            id: `sch_${Date.now()}`,
+            id: newId,
             name: data.name || 'مدرسة جديدة',
             createdAt: new Date().toISOString(),
             isActive: true,
@@ -762,25 +631,25 @@ const App: React.FC = () => {
         const updatedSchools = [...schools, newSchool];
         setSchools(updatedSchools);
         
-        // Immediate Local Save
+        // Save immediately
         localStorage.setItem('system_schools', JSON.stringify(updatedSchools));
+        if (isCloudConnected) await saveSystemData('schools_registry', updatedSchools);
 
-        // Cloud Save
-        if (isCloudConnected) {
-            await saveSystemData('schools_registry', updatedSchools);
-        }
-
-        // Send email
-        if (newSchool.email) {
-            // Non-blocking email
-            sendActivationEmail(newSchool.email, newSchool.name, newSchool.activationCode, 'registration');
-        }
+        // Send Welcome Email (Async)
+        if (newSchool.email) sendActivationEmail(newSchool.email, newSchool.name, newSchool.activationCode, 'registration');
 
         setIsRegistering(false);
         setShowRegisterModal(false);
         setRegForm({ name: '', email: '', phone: '', username: '', password: '' });
+        
+        // Direct Login
         setCurrentSchoolId(newSchool.id); 
-        alert(`تم تسجيل مدرسة ${newSchool.name} بنجاح!`);
+        // Update URL
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('school', newSchool.id);
+        window.history.pushState({}, '', newUrl);
+        
+        alert(`تم تسجيل مدرسة ${newSchool.name} بنجاح!\nالكود الخاص بكم هو: ${newId}`);
     };
 
     const handleUpgradeSubscription = async (id: string, plan: SubscriptionPlan, code: string) => {
@@ -795,7 +664,7 @@ const App: React.FC = () => {
                 isPaid: true,
                 isActive: true,
                 subscriptionEnd: new Date(Date.now() + duration*24*60*60*1000).toISOString(),
-                activationCode: Math.floor(1000 + Math.random() * 9000).toString() // Reset code
+                activationCode: Math.floor(1000 + Math.random() * 9000).toString()
             };
             setSchools(schools.map(s => s.id === id ? updated : s));
             return true;
@@ -850,12 +719,12 @@ const App: React.FC = () => {
         );
     }
 
-    // 3. School Directory (Default Landing)
+    // 3. SaaS Landing Page
     return (
         <ErrorBoundary>
-            <SchoolDirectory 
+            <LandingPage 
                 schools={schools}
-                onSelectSchool={setCurrentSchoolId}
+                onEnterSchool={setCurrentSchoolId}
                 onOpenSystemAdmin={() => setIsSystemAdmin(true)}
                 onRegisterNew={() => setShowRegisterModal(true)}
             />
@@ -909,7 +778,7 @@ const App: React.FC = () => {
                             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex gap-3 items-start">
                                     <CheckCircle className="text-indigo-600 shrink-0 mt-0.5" size={18}/>
                                     <p className="text-xs text-indigo-800 leading-relaxed">
-                                        عند التسجيل، ستحصل على صلاحية كاملة للنظام لمدة 7 أيام مجاناً. يمكنك ترقية الباقة لاحقاً من إعدادات المدرسة.
+                                        عند التسجيل، ستحصل على صلاحية كاملة للنظام لمدة 7 أيام مجاناً. سيتم إنشاء <strong>كود مدرسة</strong> خاص بكم للدخول.
                                     </p>
                             </div>
 

@@ -1,5 +1,5 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, Firestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 // Type for the configuration object
 export interface FirebaseConfig {
@@ -16,8 +16,17 @@ let db: Firestore | null = null;
 
 export const initFirebase = (config: FirebaseConfig) => {
   try {
-    app = initializeApp(config);
-    db = getFirestore(app);
+    // Validate config presence to avoid crashing on empty env vars
+    if (!config.apiKey || !config.projectId) {
+        console.warn("Firebase Config missing. Running in local/offline mode.");
+        return false;
+    }
+
+    if (!app) {
+        app = initializeApp(config);
+        db = getFirestore(app);
+        console.log("Firebase initialized successfully");
+    }
     return true;
   } catch (error) {
     console.error("Firebase Init Error:", error);
@@ -31,8 +40,7 @@ export const getDB = () => db;
 export const saveSchoolData = async (schoolId: string, collectionName: string, data: any) => {
   if (!db) return;
   try {
-    // We store huge arrays in single documents for simplicity in this migration
-    // Structure: schools/{schoolId}/collections/{collectionName}
+    // Structure: schools/{schoolId}/data/{collectionName}
     const docRef = doc(db, 'schools', schoolId, 'data', collectionName);
     await setDoc(docRef, { items: data }, { merge: true });
   } catch (e) {
@@ -55,12 +63,11 @@ export const loadSchoolData = async (schoolId: string, collectionName: string) =
   }
 };
 
-// --- NEW: System Level Sync (For Global School Registry) ---
+// --- System Level Sync (For Global School Registry) ---
 
 export const saveSystemData = async (key: string, data: any) => {
   if (!db) return;
   try {
-    // Storing in a separate collection 'system' to differentiate from 'schools'
     // Structure: system/registry/settings/{key}
     const docRef = doc(db, 'system', 'registry', 'settings', key); 
     await setDoc(docRef, { value: data }, { merge: true });
