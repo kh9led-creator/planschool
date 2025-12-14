@@ -240,18 +240,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   // Attempt to find matching class ID by name
                   let targetClassId = selectedClassId; // Default to currently selected
                   if (className) {
-                      const foundClass = classes.find(c => c.name.trim() === className.toString().trim());
+                      // Normalize class name for comparison
+                      const normalizedImportName = className.toString().trim().toLowerCase();
+                      
+                      const foundClass = classes.find(c => 
+                          c.name.trim().toLowerCase() === normalizedImportName || 
+                          c.name.trim().toLowerCase().includes(normalizedImportName)
+                      );
+                      
                       if (foundClass) targetClassId = foundClass.id;
                   }
 
-                  newStudents.push({
-                      id: `s_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
-                      schoolId: schoolId,
-                      name: name.toString().trim(),
-                      parentPhone: phone.toString().trim(),
-                      classId: targetClassId || (classes.length > 0 ? classes[0].id : 'no_class'),
-                      absenceCount: 0
-                  });
+                  // Fallback: If no class selected or found, use "Unassigned" or similar logic?
+                  // For now, if no targetClassId, we default to current selected or first available.
+                  const finalClassId = targetClassId || (classes.length > 0 ? classes[0].id : '');
+
+                  if (finalClassId) {
+                      newStudents.push({
+                          id: `s_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+                          schoolId: schoolId,
+                          name: name.toString().trim(),
+                          parentPhone: phone.toString().trim(),
+                          classId: finalClassId,
+                          absenceCount: 0
+                      });
+                  }
               }
           });
 

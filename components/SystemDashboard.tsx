@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar, Power } from 'lucide-react';
+import { School, Wallet, Search, Filter, Shield, Key, Trash2, CheckCircle, TrendingUp, CreditCard, Landmark, Globe, Save, Loader2, Copy, AlertOctagon, UserCog, LogOut, MoreVertical, Calendar, Power, Link as LinkIcon, RefreshCcw, Eye, XCircle } from 'lucide-react';
 import { SchoolSettings, PricingConfig } from '../types';
 import { saveSystemData, loadSystemData } from '../services/firebase';
 
@@ -41,7 +41,7 @@ interface SystemDashboardProps {
     schools: SchoolMetadata[];
     onSelectSchool: (id: string) => void;
     onDeleteSchool: (id: string) => void;
-    onToggleStatus: (id: string, currentStatus: boolean) => void; // New Prop
+    onToggleStatus: (id: string, currentStatus: boolean) => void; 
     onLogout: () => void;
     pricing: PricingConfig;
     onSavePricing: (config: PricingConfig) => void;
@@ -51,7 +51,8 @@ interface SystemDashboardProps {
 const cardClass = "bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden";
 const inputClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 transition-all";
 const labelClass = "block text-xs font-bold text-slate-500 mb-1.5 mr-1";
-const badgeClass = "px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1";
+const tableHeaderClass = "px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50/50 border-b border-slate-100 text-right";
+const tableCellClass = "px-6 py-4 whitespace-nowrap text-sm text-slate-700 border-b border-slate-50";
 
 const SystemDashboard: React.FC<SystemDashboardProps> = ({ 
     schools, 
@@ -93,7 +94,6 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
         try {
             await saveSystemData('payment_config', paymentConfig);
             onSavePricing(localPricing);
-            // Simulate delay for effect
             await new Promise(r => setTimeout(r, 800)); 
             alert('تم تحديث إعدادات النظام بنجاح');
         } catch (e) {
@@ -126,32 +126,44 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
         return matchesSearch && matchesFilter;
     });
 
-    const copyCredentials = (school: SchoolMetadata) => {
-        const text = `رابط النظام: ${window.location.origin}?school=${school.id}\nاسم المستخدم: ${school.adminUsername}\nكلمة المرور: ${school.adminPassword}`;
-        navigator.clipboard.writeText(text);
-        alert(`تم نسخ بيانات دخول: ${school.name}`);
+    const copyLink = (schoolId: string) => {
+        const link = `${window.location.origin}?school=${schoolId}`;
+        navigator.clipboard.writeText(link);
+        alert('تم نسخ رابط المدرسة المباشر');
     };
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800" dir="rtl">
             
             {/* Top Navbar */}
-            <header className="bg-slate-900 text-white sticky top-0 z-50 shadow-lg border-b border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-indigo-600 p-2 rounded-lg"><UserCog size={20} className="text-white"/></div>
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 h-20 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-slate-900 p-2.5 rounded-xl"><UserCog size={24} className="text-white"/></div>
                         <div>
-                            <h1 className="font-bold text-lg leading-tight">لوحة تحكم النظام</h1>
-                            <p className="text-[10px] text-slate-400">الإدارة المركزية</p>
+                            <h1 className="font-extrabold text-xl text-slate-900 leading-none">لوحة الإدارة المركزية</h1>
+                            <p className="text-xs text-slate-500 mt-1 font-bold">نظام الخطط الأسبوعية - Admin Panel</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-2 text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 text-slate-300">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            System Online
+                        <div className="hidden lg:flex items-center gap-6 mr-8">
+                            <div className="text-center">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">المدارس</p>
+                                <p className="text-lg font-extrabold text-slate-800">{stats.total}</p>
+                            </div>
+                            <div className="h-8 w-px bg-slate-200"></div>
+                            <div className="text-center">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">نشطة</p>
+                                <p className="text-lg font-extrabold text-emerald-600">{stats.active}</p>
+                            </div>
+                            <div className="h-8 w-px bg-slate-200"></div>
+                            <div className="text-center">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">تجريبي</p>
+                                <p className="text-lg font-extrabold text-amber-600">{stats.trial}</p>
+                            </div>
                         </div>
-                        <button onClick={onLogout} className="flex items-center gap-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg transition-all">
-                            <LogOut size={14}/> خروج
+                        <button onClick={onLogout} className="flex items-center gap-2 text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2.5 rounded-xl transition-all border border-rose-100">
+                            <LogOut size={16}/> تسجيل خروج
                         </button>
                     </div>
                 </div>
@@ -159,64 +171,33 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
 
             <main className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
                 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-slideDown">
-                    <div className={`${cardClass} p-5 flex items-center justify-between border-l-4 border-l-indigo-500`}>
-                        <div>
-                            <p className="text-slate-500 text-xs font-bold mb-1">إجمالي المدارس</p>
-                            <h3 className="text-3xl font-extrabold text-slate-800">{stats.total}</h3>
-                        </div>
-                        <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600"><School size={24}/></div>
-                    </div>
-                    <div className={`${cardClass} p-5 flex items-center justify-between border-l-4 border-l-emerald-500`}>
-                        <div>
-                            <p className="text-slate-500 text-xs font-bold mb-1">الاشتراكات النشطة</p>
-                            <h3 className="text-3xl font-extrabold text-emerald-600">{stats.active}</h3>
-                        </div>
-                        <div className="bg-emerald-50 p-3 rounded-xl text-emerald-600"><CheckCircle size={24}/></div>
-                    </div>
-                    <div className={`${cardClass} p-5 flex items-center justify-between border-l-4 border-l-amber-500`}>
-                        <div>
-                            <p className="text-slate-500 text-xs font-bold mb-1">فترة تجريبية</p>
-                            <h3 className="text-3xl font-extrabold text-amber-600">{stats.trial}</h3>
-                        </div>
-                        <div className="bg-amber-50 p-3 rounded-xl text-amber-600"><CreditCard size={24}/></div>
-                    </div>
-                    <div className={`${cardClass} p-5 flex items-center justify-between border-l-4 border-l-blue-500`}>
-                        <div>
-                            <p className="text-slate-500 text-xs font-bold mb-1">إجمالي الإيرادات</p>
-                            <h3 className="text-3xl font-extrabold text-blue-600">{stats.revenue.toLocaleString()} <span className="text-xs font-normal text-slate-400">{pricing.currency}</span></h3>
-                        </div>
-                        <div className="bg-blue-50 p-3 rounded-xl text-blue-600"><TrendingUp size={24}/></div>
-                    </div>
-                </div>
-
                 {/* Tabs */}
-                <div className="flex gap-4 border-b border-slate-200 pb-1">
+                <div className="flex gap-2 p-1 bg-white border border-slate-200 rounded-xl w-fit">
                     <button 
                         onClick={() => setActiveTab('schools')}
-                        className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'schools' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`px-6 py-2.5 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${activeTab === 'schools' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                     >
                         <School size={18}/> إدارة المدارس
                     </button>
                     <button 
                         onClick={() => setActiveTab('finance')}
-                        className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'finance' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`px-6 py-2.5 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${activeTab === 'finance' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                     >
                         <Wallet size={18}/> الإعدادات المالية
                     </button>
                 </div>
 
-                {/* --- SCHOOLS TAB --- */}
+                {/* --- SCHOOLS TAB (Direct Management View) --- */}
                 {activeTab === 'schools' && (
                     <div className="space-y-6 animate-fadeIn">
-                        {/* Search & Filter */}
-                        <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        
+                        {/* Toolbar */}
+                        <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                             <div className="relative w-full md:w-96">
                                 <input 
                                     type="text" 
-                                    placeholder="بحث باسم المدرسة، المستخدم، أو الإيميل..." 
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-3 text-sm focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                                    placeholder="بحث سريع (اسم المدرسة، المدير...)" 
+                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl pl-4 pr-10 py-3 text-sm font-bold text-slate-700 outline-none transition-all placeholder:font-normal"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -225,104 +206,120 @@ const SystemDashboard: React.FC<SystemDashboardProps> = ({
                             <div className="flex items-center gap-2 w-full md:w-auto">
                                 <Filter size={18} className="text-slate-400 ml-1"/>
                                 <select 
-                                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 outline-none cursor-pointer hover:bg-slate-100"
+                                    className="bg-slate-50 border-none font-bold text-slate-600 rounded-xl px-4 py-3 text-sm outline-none cursor-pointer hover:bg-slate-100 min-w-[150px]"
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value as any)}
                                 >
                                     <option value="all">جميع الحالات</option>
-                                    <option value="active">نشط فقط</option>
-                                    <option value="trial">تجريبي</option>
-                                    <option value="expired">منتهي الصلاحية</option>
+                                    <option value="active">النشطة فقط</option>
+                                    <option value="trial">الفترة التجريبية</option>
+                                    <option value="expired">المنتهية</option>
                                 </select>
                             </div>
                         </div>
 
-                        {/* Schools Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredSchools.length === 0 ? (
-                                <div className="col-span-full py-20 bg-white rounded-3xl border border-dashed border-slate-300 text-center flex flex-col items-center">
-                                    <div className="bg-slate-50 p-6 rounded-full mb-4"><Search size={40} className="text-slate-300"/></div>
-                                    <h3 className="text-lg font-bold text-slate-700">لا توجد نتائج مطابقة</h3>
-                                    <p className="text-slate-400 text-sm mt-1">جرب تغيير كلمات البحث أو الفلتر</p>
-                                </div>
-                            ) : (
-                                filteredSchools.map(school => {
-                                    const isExpired = new Date(school.subscriptionEnd) < new Date();
-                                    const daysRemaining = Math.ceil((new Date(school.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-                                    
-                                    return (
-                                        <div key={school.id} className={`${cardClass} flex flex-col group relative`}>
-                                            {/* Status Stripe */}
-                                            <div className={`h-1.5 w-full ${!school.isActive ? 'bg-slate-300' : isExpired ? 'bg-rose-500' : school.plan === 'trial' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
-                                            
-                                            <div className="p-5 flex justify-between items-start">
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-slate-800 group-hover:text-indigo-700 transition-colors">{school.name}</h3>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded border ${
-                                                            school.plan === 'annual' ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                                                            school.plan === 'quarterly' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                            'bg-amber-50 text-amber-700 border-amber-100'
-                                                        }`}>
-                                                            {school.plan === 'annual' ? 'سنوي' : school.plan === 'quarterly' ? 'فصلي' : 'تجريبي'}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-400 font-mono">#{school.id.slice(-6)}</span>
+                        {/* Schools Table View */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr>
+                                            <th className={tableHeaderClass}>المدرسة</th>
+                                            <th className={tableHeaderClass}>بيانات المدير</th>
+                                            <th className={tableHeaderClass}>حالة الاشتراك</th>
+                                            <th className={tableHeaderClass}>التفعيل</th>
+                                            <th className={tableHeaderClass}>إجراءات سريعة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredSchools.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="py-20 text-center">
+                                                    <div className="flex flex-col items-center justify-center opacity-50">
+                                                        <Search size={40} className="mb-2"/>
+                                                        <p className="font-bold">لا توجد مدارس مطابقة</p>
                                                     </div>
-                                                </div>
-                                                <button onClick={() => copyCredentials(school)} className="text-slate-300 hover:text-indigo-500 transition-colors" title="نسخ بيانات الدخول">
-                                                    <Copy size={18}/>
-                                                </button>
-                                            </div>
-
-                                            <div className="px-5 py-3 space-y-3 bg-slate-50/50 border-y border-slate-50">
-                                                <div className="flex justify-between items-center text-xs">
-                                                    <span className="text-slate-500 flex items-center gap-1"><Calendar size={12}/> انتهاء الاشتراك</span>
-                                                    <span className={`font-mono font-bold ${daysRemaining < 7 ? 'text-rose-600' : 'text-slate-700'}`}>
-                                                        {new Date(school.subscriptionEnd).toLocaleDateString('en-GB')}
-                                                    </span>
-                                                </div>
-                                                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                                    <div 
-                                                        className={`h-full rounded-full ${daysRemaining < 7 ? 'bg-rose-500' : daysRemaining < 30 ? 'bg-amber-400' : 'bg-emerald-500'}`}
-                                                        style={{ width: `${Math.min(100, Math.max(0, (daysRemaining / 365) * 100))}%` }}
-                                                    ></div>
-                                                </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredSchools.map(school => {
+                                                const isExpired = new Date(school.subscriptionEnd) < new Date();
+                                                const daysRemaining = Math.ceil((new Date(school.subscriptionEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
                                                 
-                                                <div className="flex justify-between items-center">
-                                                    <p className={`text-[10px] ${daysRemaining < 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
-                                                        {daysRemaining < 0 ? 'اشتراك منتهي' : `متبقي ${daysRemaining} يوم`}
-                                                    </p>
-                                                    {/* Activation Toggle */}
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-500">{school.isActive ? 'مفعل' : 'معطل'}</span>
-                                                        <button 
-                                                            onClick={() => onToggleStatus(school.id, school.isActive)}
-                                                            className={`w-8 h-4 rounded-full relative transition-colors ${school.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                                        >
-                                                            <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all ${school.isActive ? 'right-0.5' : 'right-4.5'}`}></div>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-4 grid grid-cols-2 gap-3 mt-auto">
-                                                <button 
-                                                    onClick={() => onSelectSchool(school.id)}
-                                                    className="bg-slate-800 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Shield size={14}/> إدارة
-                                                </button>
-                                                <button 
-                                                    onClick={() => { if(window.confirm(`هل أنت متأكد من حذف ${school.name}؟ لا يمكن التراجع.`)) onDeleteSchool(school.id) }}
-                                                    className="bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Trash2 size={14}/> حذف
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
+                                                return (
+                                                    <tr key={school.id} className="hover:bg-slate-50/80 transition-colors group">
+                                                        <td className={tableCellClass}>
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-slate-800 text-base">{school.name}</span>
+                                                                <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: {school.id}</span>
+                                                                <div className="flex gap-2 mt-1">
+                                                                    <button onClick={() => copyLink(school.id)} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-indigo-100 transition-colors" title="نسخ الرابط المباشر">
+                                                                        <LinkIcon size={10}/> رابط المدرسة
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className={tableCellClass}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="text-xs">
+                                                                    <span className="text-slate-400 ml-1">اسم المستخدم:</span>
+                                                                    <span className="font-mono font-bold bg-slate-100 px-1 rounded select-all">{school.adminUsername}</span>
+                                                                </div>
+                                                                <div className="text-xs">
+                                                                    <span className="text-slate-400 ml-1">كلمة المرور:</span>
+                                                                    <span className="font-mono font-bold bg-slate-100 px-1 rounded select-all">{school.adminPassword}</span>
+                                                                </div>
+                                                                <div className="text-xs text-slate-500">{school.managerPhone || '-'}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className={tableCellClass}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className={`text-xs font-bold px-2 py-1 rounded-full w-fit ${isExpired ? 'bg-rose-100 text-rose-700' : school.plan === 'trial' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                                    {isExpired ? 'منتهي' : school.plan === 'trial' ? 'تجريبي' : 'اشتراك مدفوع'}
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-500 font-mono">
+                                                                    ينتهي: {new Date(school.subscriptionEnd).toLocaleDateString('en-GB')}
+                                                                </span>
+                                                                {!isExpired && <span className="text-[10px] text-slate-400">متبقي {daysRemaining} يوم</span>}
+                                                            </div>
+                                                        </td>
+                                                        <td className={tableCellClass}>
+                                                            <div className="flex items-center gap-3">
+                                                                <button 
+                                                                    onClick={() => onToggleStatus(school.id, school.isActive)}
+                                                                    className={`relative w-10 h-5 rounded-full transition-colors ${school.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                                    title={school.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'}
+                                                                >
+                                                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all shadow-sm ${school.isActive ? 'right-1' : 'right-6'}`}></div>
+                                                                </button>
+                                                                <span className="text-xs font-bold text-slate-600">{school.isActive ? 'مفعل' : 'معطل'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className={tableCellClass}>
+                                                            <div className="flex items-center gap-2">
+                                                                <button 
+                                                                    onClick={() => onSelectSchool(school.id)}
+                                                                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                                                                    title="دخول كمسؤول للمدرسة"
+                                                                >
+                                                                    <Eye size={18}/>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => { if(window.confirm(`حذف مدرسة ${school.name} نهائياً؟`)) onDeleteSchool(school.id) }}
+                                                                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                                                                    title="حذف المدرسة"
+                                                                >
+                                                                    <Trash2 size={18}/>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 )}
