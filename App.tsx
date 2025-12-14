@@ -1,9 +1,9 @@
-import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense } from 'react';
+import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense, Component } from 'react';
 // Keep lightweight components eagerly loaded
 import PublicClassPlansView from './components/PublicClassPlansView';
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket, Fingerprint } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School as SchoolIcon, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon, LogOut, LayoutGrid, Rocket, Fingerprint, LockKeyhole } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
@@ -76,11 +76,11 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -240,9 +240,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ schools, onEnterSchool, onOpe
                     <button onClick={onRegisterNew} className="hidden md:flex bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors">
                         ابدأ التجربة المجانية
                     </button>
-                    <button onClick={onOpenSystemAdmin} className="text-slate-400 hover:text-slate-600 transition-colors p-2" title="إدارة النظام">
-                        <Power size={20}/>
-                    </button>
                 </div>
             </nav>
 
@@ -330,15 +327,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ schools, onEnterSchool, onOpe
                 </div>
             </div>
             
-            <footer className="w-full py-8 text-center text-slate-400 text-xs font-medium border-t border-slate-100 bg-slate-50/50">
-                &copy; {new Date().getFullYear()} Madrasti Planner System. All rights reserved.
+            <footer className="w-full py-8 text-center text-slate-400 text-xs font-medium border-t border-slate-100 bg-slate-50/50 flex justify-center gap-4">
+                <span>&copy; {new Date().getFullYear()} Madrasti Planner System. All rights reserved.</span>
+                <span className="text-slate-300">|</span>
+                <button onClick={onOpenSystemAdmin} className="flex items-center gap-1 hover:text-slate-600 transition-colors" title="إدارة النظام">
+                    <LockKeyhole size={14}/> إدارة النظام
+                </button>
             </footer>
         </div>
     );
 };
 
 // --- 6. School System Logic (UNCHANGED logic, just layout context) ---
-// (Keeping the internal logic of SchoolSystem as is, just ensuring it receives correct props)
 interface SchoolSystemProps {
   schoolId: string;
   schoolMetadata: SchoolMetadata; 
@@ -531,10 +531,16 @@ const App: React.FC = () => {
     const [isCloudConnected, setIsCloudConnected] = useState(false);
     const [pricing, setPricing] = useState<PricingConfig>({ quarterly: 100, annual: 300, currency: 'SAR' });
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [showSystemLoginModal, setShowSystemLoginModal] = useState(false);
     
     // Register Form
     const [regForm, setRegForm] = useState({ name: '', email: '', phone: '', username: '', password: '' });
     const [isRegistering, setIsRegistering] = useState(false);
+
+    // System Login Form
+    const [sysUsername, setSysUsername] = useState('');
+    const [sysPassword, setSysPassword] = useState('');
+    const [sysError, setSysError] = useState('');
 
     // Initialization
     useEffect(() => {
@@ -552,10 +558,9 @@ const App: React.FC = () => {
         // 2. URL Params check
         const urlParams = new URLSearchParams(window.location.search);
         const urlSchoolId = urlParams.get('school');
-        const urlAdmin = urlParams.get('admin');
-
-        if (urlAdmin) setIsSystemAdmin(true);
-        else if (urlSchoolId) setCurrentSchoolId(urlSchoolId);
+        
+        // Remove direct admin access via URL for security, rely on modal
+        if (urlSchoolId) setCurrentSchoolId(urlSchoolId);
 
         // 3. Cloud Sync
         const syncCloud = async () => {
@@ -672,6 +677,22 @@ const App: React.FC = () => {
         return false;
     };
 
+    const handleSystemLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        setSysError('');
+        
+        // Default System Credentials
+        // In a real app, this should be in Firebase Env or Auth
+        if (sysUsername === 'admin' && sysPassword === 'admin123') {
+            setIsSystemAdmin(true);
+            setShowSystemLoginModal(false);
+            setSysUsername('');
+            setSysPassword('');
+        } else {
+            setSysError('بيانات الدخول غير صحيحة');
+        }
+    };
+
     // 1. System Admin View
     if (isSystemAdmin) {
         return (
@@ -704,7 +725,7 @@ const App: React.FC = () => {
                         setCurrentSchoolId(null);
                         window.history.pushState({}, '', window.location.pathname); // clear param
                     }}
-                    onOpenSystemAdmin={() => setIsSystemAdmin(true)}
+                    onOpenSystemAdmin={() => setShowSystemLoginModal(true)}
                     isCloudConnected={isCloudConnected}
                     onRegisterSchool={(data) => {
                         setRegForm({...regForm, ...data});
@@ -725,7 +746,7 @@ const App: React.FC = () => {
             <LandingPage 
                 schools={schools}
                 onEnterSchool={setCurrentSchoolId}
-                onOpenSystemAdmin={() => setIsSystemAdmin(true)}
+                onOpenSystemAdmin={() => setShowSystemLoginModal(true)}
                 onRegisterNew={() => setShowRegisterModal(true)}
             />
 
@@ -786,6 +807,69 @@ const App: React.FC = () => {
                                 {isRegistering ? <Loader2 className="animate-spin"/> : <><ArrowRight size={20} className="rotate-180"/> إنشاء الحساب وبدء التجربة</>}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* System Login Modal */}
+            {showSystemLoginModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-slideDown border border-slate-700">
+                        <div className="p-8 text-center relative">
+                            <button onClick={() => setShowSystemLoginModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
+                                <X size={20}/>
+                            </button>
+                            <div className="w-16 h-16 bg-slate-800 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-inner border border-slate-700">
+                                <ShieldCheck size={32} className="text-emerald-500"/>
+                            </div>
+                            <h2 className="text-xl font-bold text-white mb-1">إدارة النظام</h2>
+                            <p className="text-slate-400 text-sm">الدخول بصلاحيات المدير العام</p>
+                        </div>
+                        
+                        <form onSubmit={handleSystemLogin} className="p-8 pt-0 space-y-5">
+                            {sysError && (
+                                <div className="bg-rose-500/10 text-rose-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-500/20">
+                                    <AlertOctagon size={16}/> {sysError}
+                                </div>
+                            )}
+                            
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-400 mr-1">اسم المستخدم</label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
+                                        value={sysUsername}
+                                        onChange={e => setSysUsername(e.target.value)}
+                                        placeholder="admin"
+                                    />
+                                    <UserCog className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-400 mr-1">كلمة المرور</label>
+                                <div className="relative">
+                                    <input 
+                                        type="password" 
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:border-emerald-500 focus:bg-slate-800/80 transition-all text-white font-bold placeholder:font-normal placeholder:text-slate-600"
+                                        value={sysPassword}
+                                        onChange={e => setSysPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                    />
+                                    <Key className="absolute left-3 top-3.5 text-slate-500" size={18}/>
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 group mt-2">
+                                <LockKeyhole size={20} className="group-hover:scale-110 transition-transform"/>
+                                تسجيل الدخول الآمن
+                            </button>
+                            
+                            <p className="text-center text-[10px] text-slate-600">
+                                Default: admin / admin123
+                            </p>
+                        </form>
                     </div>
                 </div>
             )}
