@@ -6,7 +6,7 @@ import SystemDashboard from './components/SystemDashboard'; // Imported standalo
 import PublicClassPlansView from './components/PublicClassPlansView'; // New component
 import InvoiceModal from './components/InvoiceModal';
 import { PlanEntry, Teacher, ArchivedPlan, ArchivedAttendance, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
-import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter } from 'lucide-react';
+import { UserCog, ShieldCheck, Building2, PlusCircle, ChevronDown, Check, Power, Trash2, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Cloud, CloudOff, Database, Save, Calendar, Clock, CreditCard, Lock, Copy, Key, School, CheckCircle, Mail, User, ArrowRight, ArrowLeft, BarChart3, Wifi, WifiOff, Phone, Smartphone, Wallet, Landmark, Percent, Globe, Tag, LogIn, ExternalLink, Shield, TrendingUp, Filter, Link as LinkIcon } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
@@ -534,6 +534,36 @@ const SchoolSystem: React.FC<SchoolSystemProps> = ({
                   </button>
            </form>
            
+           {/* School Direct Link Section - New Feature */}
+           {!isExpired && schoolMetadata.id !== 'new' && schoolMetadata.id !== 'setup_mode' && (
+                <div className="mt-4 bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-right">
+                    <label className="text-[10px] font-bold text-indigo-900 block mb-1.5 flex items-center gap-1">
+                        <LinkIcon size={12} /> رابط دخول المدرسة الخاص
+                    </label>
+                    <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg p-1">
+                        <input 
+                            readOnly 
+                            value={`${window.location.origin}?school=${schoolMetadata.id}`} 
+                            className="text-[10px] font-mono text-slate-600 flex-1 bg-transparent outline-none px-2 text-left dir-ltr"
+                            dir="ltr"
+                        />
+                        <button 
+                            onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}?school=${schoolMetadata.id}`);
+                                alert('تم نسخ الرابط بنجاح');
+                            }}
+                            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-1.5 rounded-md transition-colors"
+                            title="نسخ الرابط"
+                        >
+                            <Copy size={14} />
+                        </button>
+                    </div>
+                    <p className="text-[9px] text-indigo-400 mt-1.5 leading-tight">
+                        شارك هذا الرابط مع المعلمين والإداريين للدخول المباشر للمدرسة.
+                    </p>
+                </div>
+           )}
+
            <div className="text-xs text-slate-400 pt-4 border-t flex justify-between items-center">
                <span>v3.9.7</span>
                <span className="flex items-center gap-1 font-mono text-[10px] opacity-70">
@@ -814,7 +844,9 @@ const App: React.FC = () => {
       localStorage.setItem('last_active_school_id', newSchool.id);
       
       const uniqueLink = `${window.location.origin}?school=${newSchoolId}`;
-      alert(`تم تسجيل المدرسة بنجاح!\n\nالرابط الخاص بالمدرسة:\n${uniqueLink}\n\nيمكنك استخدامه للدخول المباشر مستقبلاً.`);
+      window.history.pushState({}, '', uniqueLink); // Update URL bar explicitly
+      
+      alert(`تم تسجيل المدرسة بنجاح!\n\nرابط المدرسة:\n${uniqueLink}`);
   };
 
   const handleUpgradeSubscription = async (id: string, plan: SubscriptionPlan, code: string) => {
