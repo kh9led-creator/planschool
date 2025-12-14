@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense, Component } from 'react';
+import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense } from 'react';
 // Keep lightweight components eagerly loaded
 import PublicClassPlansView from './components/PublicClassPlansView';
 import InvoiceModal from './components/InvoiceModal';
@@ -76,7 +76,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -717,6 +717,10 @@ const App: React.FC = () => {
 
     // 2. School System View (When a school is selected)
     const currentSchool = schools.find(s => s.id === currentSchoolId);
+    
+    // Check for Public Portal Access via URL param
+    const isPublicPortal = new URLSearchParams(window.location.search).get('public') === 'true';
+
     if (currentSchool) {
         return (
             <ErrorBoundary>
@@ -738,6 +742,7 @@ const App: React.FC = () => {
                     onUpgradeSubscription={handleUpgradeSubscription}
                     pricing={pricing}
                     availableSchools={schools}
+                    initialView={isPublicPortal ? ViewState.PUBLIC_PORTAL : ViewState.HOME}
                 />
             </ErrorBoundary>
         );
