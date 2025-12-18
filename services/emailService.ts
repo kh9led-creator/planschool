@@ -1,15 +1,13 @@
+
 import emailjs from '@emailjs/browser';
 
 // Configuration for EmailJS
-// You should get these from your EmailJS dashboard: https://www.emailjs.com/
-// For security, strictly use Environment Variables in production.
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_id_placeholder'; 
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_id_placeholder';
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'public_key_placeholder';
 
 export const sendActivationEmail = async (email: string, schoolName: string, code: string, type: 'registration' | 'renewal'): Promise<boolean> => {
     
-    // Check if keys are configured, otherwise fall back to simulation
     const isConfigured = EMAILJS_SERVICE_ID !== 'service_id_placeholder';
 
     if (!isConfigured) {
@@ -18,47 +16,43 @@ export const sendActivationEmail = async (email: string, schoolName: string, cod
     }
 
     try {
-        console.log(`[Email Service] Sending real email to ${email}...`);
-        
+        const messageBody = type === 'registration' 
+            ? `مرحباً مدير مدرسة ${schoolName}، شكراً لتسجيلكم في نظامنا. كود الدخول الخاص بمدرستكم هو: ${code}. يرجى الاحتفاظ بهذا الكود للدخول إلى لوحة التحكم.`
+            : `مرحباً مدير مدرسة ${schoolName}، تم استلام طلب تجديد الاشتراك. كود التفعيل الخاص بك هو: ${code}`;
+
         const templateParams = {
             to_email: email,
             to_name: schoolName,
-            subject: type === 'registration' ? 'تفعيل حساب المدرسة' : 'تجديد الاشتراك',
-            message: `
-                مرحباً مدير مدرسة ${schoolName}،
-                
-                ${type === 'registration' ? 'شكراً لتسجيلكم.' : 'طلب تجديد الاشتراك.'}
-                كود التفعيل الخاص بك هو: ${code}
-            `,
-            code: code, // Assuming your template has a {{code}} variable
+            subject: type === 'registration' ? 'كود الدخول الخاص بمدرستكم' : 'تجديد الاشتراك - كود التفعيل',
+            message: messageBody,
+            code: code,
         };
 
         await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
-        console.log('[Email Service] Email sent successfully!');
         return true;
 
     } catch (error) {
         console.error('[Email Service] Failed to send email:', error);
-        alert('فشل إرسال البريد الإلكتروني الحقيقي. تأكد من إعدادات EmailJS.');
         return false;
     }
 };
 
 const simulateEmail = async (email: string, schoolName: string, code: string, type: 'registration' | 'renewal'): Promise<boolean> => {
     return new Promise((resolve) => {
-        console.log(`[Email Service - SIMULATION] Connecting to SMTP server...`);
         setTimeout(() => {
             console.log(`
             =================================================
-            [SIMULATED EMAIL - CONSOLE OUTPUT]
-            TO: ${email}
-            SUBJECT: ${type === 'registration' ? 'تفعيل حساب المدرسة' : 'تجديد الاشتراك'}
+            [بريد إلكتروني محاكي - مخصص للتطوير]
+            إلى: ${email}
+            الموضوع: ${type === 'registration' ? 'كود الدخول للمدرسة الجديد' : 'تجديد الاشتراك'}
             -------------------------------------------------
             عزيزي مدير مدرسة ${schoolName}،
-            كود التفعيل هو: >> ${code} <<
+            ${type === 'registration' 
+                ? `شكراً لتسجيلك! كود دخول مدرستك هو: [ ${code} ]` 
+                : `كود تفعيل اشتراكك هو: [ ${code} ]`}
             =================================================
             `);
             resolve(true);
-        }, 1500);
+        }, 1000);
     });
 };
