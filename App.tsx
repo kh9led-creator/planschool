@@ -43,21 +43,18 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 };
 
 // --- Error Boundary ---
-// Fixed ErrorBoundaryProps by making children optional to resolve JSX missing property error
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-// Fixed ErrorBoundary by explicitly declaring state property to resolve access errors
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
-
+// Use React.Component explicitly and add constructor to resolve "Property 'props' does not exist" error
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Add constructor to ensure props and state are correctly initialized for TypeScript
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState { 
-    return { hasError: true, error }; 
-  }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
 
   render() {
     if (this.state.hasError) {
@@ -69,6 +66,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
+    // Accessing this.props.children safely
     return this.props.children;
   }
 }
@@ -194,7 +192,7 @@ const App: React.FC = () => {
         setIsRegistering(false);
         setShowRegisterModal(false);
         setCurrentSchoolId(newId);
-        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول: ${newId}`);
+        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول الخاص بك هو: ${newId}`);
     };
 
     const handleUpgradeSubscription = async (id: string, plan: string, code: string) => {
@@ -267,21 +265,21 @@ const App: React.FC = () => {
                             <Sparkles size={16} /> الحل الأمثل للمدارس الذكية 2024
                         </div>
                         <h1 className="text-5xl lg:text-7xl font-black text-slate-900 leading-[1.1]">
-                            إدارة ذكية <br/>
-                            <span className="bg-clip-text text-transparent bg-gradient-to-l from-indigo-600 to-purple-600">لخطط مدرستك</span>
+                            نظام إدارة <br/>
+                            <span className="bg-clip-text text-transparent bg-gradient-to-l from-indigo-600 to-purple-600">الخطط الأسبوعية</span>
                         </h1>
                         <p className="text-lg text-slate-500 max-w-xl">
-                            نظام سحابي متكامل يجمع بين ذكاء التخطيط وسهولة الاستخدام للمعلمين والإدارة.
+                            وفر الوقت والجهد في إعداد الجداول والخطط الأسبوعية ورصد الغياب بضغطة زر. نظام سحابي متكامل يجمع بين ذكاء التخطيط وسهولة الاستخدام.
                         </p>
-                        <button onClick={() => setShowRegisterModal(true)} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl flex items-center justify-center gap-3 mx-auto lg:mx-0">
+                        <button onClick={() => setShowRegisterModal(true)} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl flex items-center justify-center gap-3 group mx-auto lg:mx-0">
                             اشترك الآن مجاناً <ArrowLeft size={20}/>
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-12 relative animate-slideDown">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-12 relative overflow-hidden animate-slideDown">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16"></div>
                         <h2 className="text-3xl font-black text-slate-900 mb-2">الدخول للمدرسة</h2>
-                        <p className="text-slate-400 text-sm mb-10 font-medium">أدخل كود المدرسة (ID) للوصول للنظام.</p>
+                        <p className="text-slate-400 text-sm mb-10 font-medium">أدخل كود المدرسة الخاص بك للوصول للنظام.</p>
                         <form onSubmit={(e) => {
                             e.preventDefault();
                             const code = (e.currentTarget.elements.namedItem('schoolCode') as HTMLInputElement).value;
@@ -312,7 +310,7 @@ const App: React.FC = () => {
                                     <input required className={inputModernClass} placeholder="اسم مستخدم المدير" value={regForm.username} onChange={e=>setRegForm({...regForm, username:e.target.value})} />
                                     <input required className={inputModernClass} type="password" placeholder="كلمة المرور" value={regForm.password} onChange={e=>setRegForm({...regForm, password:e.target.value})} />
                                 </div>
-                                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-100">تفعيل التجربة المجانية</button>
+                                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-100">إنشاء الحساب وبدء التجربة</button>
                                 <button type="button" onClick={()=>setShowRegisterModal(false)} className="w-full text-slate-400 font-bold mt-2">إلغاء</button>
                             </form>
                         </div>
