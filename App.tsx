@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ReactNode, Suspense } from 'react';
+import React, { Component, useState, useEffect, ReactNode, Suspense } from 'react';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
 import { ShieldCheck, Loader2, RefreshCcw, AlertTriangle, LogIn, ArrowLeft, School as SchoolIcon, User, Key, Fingerprint, LockKeyhole, Sparkles, Globe, LogOut } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
@@ -46,16 +46,17 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-// Use React.Component specifically to ensure generic props are inherited correctly
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Explicitly initialize with constructor to resolve TypeScript's missing 'props' error
+// Fixed: Explicitly extended from Component and initialized state to satisfy TypeScript property access
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false };
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError() { return { hasError: true }; }
   render() {
+    // Fixed: Accessed state via this.state
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center" dir="rtl">
@@ -66,7 +67,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    // Access children through props inherited from React.Component
+    // Fixed: Accessed children via this.props.children
     return this.props.children;
   }
 }
