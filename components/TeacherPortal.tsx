@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGroup, AttendanceRecord, Message, SchoolSettings } from '../types';
 import { DAYS_OF_WEEK } from '../services/data';
-import { User, MessageSquare, Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer, Sparkles, LayoutDashboard, Clock, History, LogOut } from 'lucide-react';
+import { User, MessageSquare, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, Send, Calendar, BookOpen, PenTool, LogOut, Sparkles } from 'lucide-react';
 
 const teacherInputClass = "w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:bg-white focus:border-emerald-400 outline-none transition-all text-right";
 
@@ -25,7 +25,7 @@ interface TeacherPortalProps {
 const TeacherPortal: React.FC<TeacherPortalProps> = ({
   teacher, schedule, existingEntries, weekInfo, onSaveEntry, subjects, students, classes, attendanceRecords, onMarkAttendance, messages, onSendMessage, schoolSettings
 }) => {
-  const [activeTab, setActiveTab] = useState<'schedule' | 'messages' | 'stats'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'messages'>('schedule');
   const [activeDay, setActiveDay] = useState<number | null>(new Date().getDay() === 5 || new Date().getDay() === 6 ? 0 : new Date().getDay());
   const [showAttendanceModal, setShowAttendanceModal] = useState<boolean>(false);
   const [selectedClassForAttendance, setSelectedClassForAttendance] = useState<{classId: string, className: string} | null>(null);
@@ -34,7 +34,6 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const teacherSchedule = useMemo(() => schedule.filter(s => s.teacherId === teacher.id), [schedule, teacher.id]);
   const todayDate = new Date().toISOString().split('T')[0];
   const myMessages = messages.filter(m => m.receiverId === teacher.id || m.receiverId === 'all' || m.senderId === teacher.id);
-  const unreadCount = messages.filter(m => (m.receiverId === teacher.id || m.receiverId === 'all') && !m.isRead).length;
 
   const handleInputChange = (slot: ScheduleSlot, field: keyof PlanEntry, value: string) => {
     const existing = existingEntries.find(e => e.dayIndex === slot.dayIndex && e.period === slot.period && e.classId === slot.classId);
@@ -49,31 +48,25 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-24" dir="rtl">
       <header className="bg-emerald-600 text-white p-8 shadow-xl relative overflow-hidden no-print">
-          <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center relative z-10">
-              <div className="flex items-center gap-5">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center relative z-10 text-right">
+              <div className="flex items-center gap-5 flex-row-reverse">
                   <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-md border border-white/20">
                       <User size={32} className="text-white"/>
                   </div>
-                  <div className="text-center md:text-right">
+                  <div className="text-right">
                       <h2 className="text-3xl font-black">أهلاً، {teacher.name}</h2>
                       <p className="text-emerald-100 font-bold">{schoolSettings.schoolName}</p>
                   </div>
               </div>
-              <div className="flex gap-3">
-                  <button onClick={() => setActiveTab('messages')} className="relative p-4 bg-white/10 rounded-2xl border border-white/20">
-                      <MessageSquare size={24}/>
-                      {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black">{unreadCount}</span>}
-                  </button>
-                  <button onClick={() => window.location.reload()} className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 border border-white/20 transition-all"><LogOut size={24}/></button>
-              </div>
+              <button onClick={() => window.location.reload()} className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 border border-white/20 transition-all mt-4 md:mt-0"><LogOut size={24}/></button>
           </div>
           <Sparkles className="absolute -bottom-10 -left-10 text-white/5 w-64 h-64 pointer-events-none" />
       </header>
 
       <nav className="max-w-5xl mx-auto px-6 -mt-8 relative z-20 no-print">
-          <div className="bg-white p-2 rounded-3xl shadow-2xl flex border border-slate-100">
+          <div className="bg-white p-2 rounded-3xl shadow-2xl flex border border-slate-100 flex-row-reverse">
               <button onClick={() => setActiveTab('schedule')} className={`flex-1 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'schedule' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}><Calendar size={18}/> الجدول الدراسي</button>
-              <button onClick={() => setActiveTab('messages')} className={`flex-1 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'messages' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}><MessageCircle size={18}/> المراسلات</button>
+              <button onClick={() => setActiveTab('messages')} className={`flex-1 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'messages' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}><MessageSquare size={18}/> المراسلات</button>
           </div>
       </nav>
 
@@ -87,7 +80,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
                     return (
                         <div key={day} className={`bg-white rounded-[2.5rem] border transition-all overflow-hidden ${isOpen ? 'shadow-xl border-emerald-100' : 'border-slate-100 shadow-sm'}`}>
-                            <button onClick={() => setActiveDay(isOpen ? null : dIdx)} className="w-full flex justify-between p-8 items-center bg-white hover:bg-slate-50">
+                            <button onClick={() => setActiveDay(isOpen ? null : dIdx)} className="w-full flex flex-row-reverse justify-between p-8 items-center bg-white hover:bg-slate-50">
                                 <h3 className={`font-black text-xl ${isOpen ? 'text-emerald-900' : 'text-slate-800'}`}>{day}</h3>
                                 {isOpen ? <ChevronUp className="text-emerald-600"/> : <ChevronDown className="text-slate-300"/>}
                             </button>
@@ -101,22 +94,22 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                                 <div className="flex flex-row-reverse justify-between items-center mb-8 pb-4 border-b border-slate-50">
                                                     <div className="text-right">
                                                         <h4 className="font-black text-2xl text-slate-800">{sub?.name}</h4>
-                                                        <p className="text-xs font-bold text-slate-400">الفصل: <span className="text-emerald-600">{cls?.name}</span></p>
+                                                        <p className="text-xs font-bold text-slate-400">الفصل: <span className="text-emerald-600 font-black">{cls?.name}</span></p>
                                                     </div>
                                                     <span className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-black">الحصة {slot.period}</span>
                                                 </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-right">
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 mr-2 flex flex-row-reverse items-center gap-1"> موضوع الدرس <PenTool size={12}/></label>
-                                                        <input className={teacherInputClass} placeholder="ماذا ستشرح اليوم؟" value={getEntryValue(slot, 'lessonTopic')} onChange={e=>handleInputChange(slot, 'lessonTopic', e.target.value)} />
+                                                        <input className={teacherInputClass} placeholder="ماذا ستقدم اليوم؟" value={getEntryValue(slot, 'lessonTopic')} onChange={e=>handleInputChange(slot, 'lessonTopic', e.target.value)} />
                                                     </div>
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 mr-2 flex flex-row-reverse items-center gap-1"> الواجب المنزلي <BookOpen size={12}/></label>
                                                         <input className={teacherInputClass} placeholder="تفاصيل الواجب..." value={getEntryValue(slot, 'homework')} onChange={e=>handleInputChange(slot, 'homework', e.target.value)} />
                                                     </div>
                                                 </div>
-                                                <div className="mt-8 flex justify-start">
-                                                    <button onClick={() => { setSelectedClassForAttendance({ classId: slot.classId, className: cls?.name || '' }); setShowAttendanceModal(true); }} className="bg-emerald-50 text-emerald-700 px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-emerald-100 transition-all shadow-sm"><UserCheck size={18}/> رصد الغياب</button>
+                                                <div className="mt-8 flex flex-row-reverse justify-between items-center">
+                                                    <button onClick={() => { setSelectedClassForAttendance({ classId: slot.classId, className: cls?.name || '' }); setShowAttendanceModal(true); }} className="bg-emerald-50 text-emerald-700 px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-emerald-100 transition-all shadow-sm flex-row-reverse"><UserCheck size={18}/> رصد الغياب</button>
                                                 </div>
                                             </div>
                                         );
@@ -132,24 +125,22 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
         {activeTab === 'messages' && (
             <div className="max-w-2xl mx-auto space-y-6 text-right">
                 <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm text-right">
-                    <h3 className="font-black text-lg mb-6">مراسلة الإدارة</h3>
+                    <h3 className="font-black text-lg mb-6">مراسلة الإدارة المدرسية</h3>
                     <textarea className="w-full h-40 bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-emerald-400 focus:bg-white transition-all resize-none text-right" placeholder="اكتب رسالتك للإدارة هنا..." value={newMessageText} onChange={e=>setNewMessageText(e.target.value)} />
                     <button onClick={() => { if(!newMessageText) return; onSendMessage({ id: `msg_${Date.now()}`, senderId: teacher.id, senderName: teacher.name, receiverId: 'admin', content: newMessageText, timestamp: new Date().toLocaleTimeString('ar-SA'), isRead: false, type: 'direct' }); setNewMessageText(''); alert('تم إرسال رسالتك بنجاح'); }} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-lg mt-4 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"><Send size={20}/> إرسال الرسالة </button>
                 </div>
-                {myMessages.length > 0 && (
-                    <div className="space-y-4">
-                        <h4 className="font-black text-slate-800">الأرشيف</h4>
-                        {myMessages.slice().reverse().map(m => (
-                            <div key={m.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
-                                <div className="flex flex-row-reverse justify-between items-center mb-2">
-                                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">{m.senderName}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
-                                </div>
-                                <p className="text-slate-700 text-sm font-bold">{m.content}</p>
+                <div className="space-y-4">
+                    <h4 className="font-black text-slate-800 border-r-4 border-emerald-500 pr-4">أرشيف المراسلات</h4>
+                    {myMessages.slice().reverse().map(m => (
+                        <div key={m.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
+                            <div className="flex flex-row-reverse justify-between items-center mb-2">
+                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">{m.senderName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
                             </div>
-                        ))}
-                    </div>
-                )}
+                            <p className="text-slate-700 text-sm font-bold">{m.content}</p>
+                        </div>
+                    ))}
+                </div>
             </div>
         )}
       </main>
@@ -165,7 +156,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                        {students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
                            const isAbsent = attendanceRecords.some(r => r.studentId === student.id && r.date === todayDate && r.status === 'absent');
                            return (
-                               <div key={student.id} onClick={() => onMarkAttendance({ date: todayDate, studentId: student.id, status: isAbsent ? 'present' : 'absent', reportedBy: teacher.name, timestamp: new Date().toLocaleTimeString('ar-SA') })} className={`flex flex-row-reverse items-center justify-between p-5 rounded-[2rem] border-2 cursor-pointer transition-all ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100 hover:border-emerald-300 shadow-sm'}`}>
+                               <div key={student.id} onClick={() => onMarkAttendance({ date: todayDate, studentId: student.id, status: isAbsent ? 'present' : 'absent', reportedBy: teacher.name, timestamp: new Date().toLocaleTimeString('ar-SA') })} className={`flex flex-row-reverse items-center justify-between p-5 rounded-[2rem] border-2 cursor-pointer transition-all ${isAbsent ? 'bg-rose-50 border-rose-200 shadow-none' : 'bg-white border-slate-100 hover:border-emerald-300 shadow-sm'}`}>
                                    <p className={`font-black text-right ${isAbsent ? 'text-rose-900' : 'text-slate-800'}`}>{student.name}</p>
                                    {isAbsent ? <XCircle size={28} className="text-rose-500"/> : <CheckCircle size={28} className="text-slate-200"/>}
                                </div>
@@ -173,7 +164,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                        })}
                    </div>
                    <div className="p-10 border-t bg-white">
-                       <button onClick={() => setShowAttendanceModal(false)} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xl hover:bg-slate-800 transition-all shadow-xl">إغلاق وحفظ</button>
+                       <button onClick={() => setShowAttendanceModal(false)} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xl hover:bg-slate-800 transition-all">إغلاق وحفظ</button>
                    </div>
                </div>
           </div>

@@ -1,13 +1,15 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-import { Users, FileText, Calendar, Printer, Plus, Trash2, Edit2, Save, History, Grid, BookOpen, Settings, Book, Image as ImageIcon, UserCheck, MessageSquare, Send, Bell, Key, AlertCircle, GraduationCap, ChevronLeft, Search, X, User, Filter, CreditCard, ShieldAlert, CheckCircle, PieChart, LayoutDashboard, Smartphone, LogOut, School as SchoolIcon, Sparkles, UserPlus } from 'lucide-react';
+import { Users, FileText, Printer, Plus, Trash2, Grid, BookOpen, Settings, Book, UserCheck, CreditCard, LayoutDashboard, LogOut, School as SchoolIcon, Sparkles, UserPlus, Search, X, FileUp, UploadCloud, Check, AlertCircle } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
+import * as XLSX from 'xlsx';
 
-const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-400 text-sm font-medium";
+const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-400 text-sm font-medium text-right";
 const labelModernClass = "block text-xs font-bold text-slate-500 mb-1.5 mr-1 text-right";
 const btnPrimaryClass = "bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95 px-6 py-3";
+const btnSecondaryClass = "bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2 px-6 py-3 shadow-sm";
 
 interface SchoolMetadata {
     id: string;
@@ -51,15 +53,15 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  classes, weekInfo, setWeekInfo, schoolSettings, setSchoolSettings, schedule, planEntries, teachers, students, subjects, onSetSubjects, onSetStudents, onSetClasses, onAddTeacher, onUpdateTeacher, onDeleteTeacher, onArchivePlan, archivedPlans, onUpdateSchedule, attendanceRecords, messages, onSendMessage, schoolMetadata, onRenewSubscription, pricing, schoolId, onResetSystem
+  classes, weekInfo, setWeekInfo, schoolSettings, setSchoolSettings, schedule, planEntries, teachers, students, subjects, onSetSubjects, onSetStudents, onSetClasses, onAddTeacher, onDeleteTeacher, onUpdateSchedule, attendanceRecords, schoolMetadata, onRenewSubscription, pricing, schoolId, onResetSystem
 }) => {
-  const isExpired = new Date(schoolMetadata.subscriptionEnd) < new Date();
-  const daysLeft = Math.ceil((new Date(schoolMetadata.subscriptionEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
-
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan' | 'attendance' | 'setup' | 'classes' | 'students' | 'teachers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan' | 'classes' | 'students' | 'teachers' | 'setup'>('dashboard');
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', classId: '' });
   const [newClass, setNewClass] = useState({ name: '', grade: '' });
@@ -75,12 +77,58 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const filteredStudents = useMemo(() => students.filter(s => s.name.includes(searchTerm)), [students, searchTerm]);
 
+  // Smart Import Logic
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        // Smart Mapping for Noor Excel Headers
+        const mappedData = data.map((row: any) => {
+            const nameKey = Object.keys(row).find(k => k.includes('اسم الطالب') || k.includes('الاسم') || k.includes('اسم'));
+            const phoneKey = Object.keys(row).find(k => k.includes('جوال') || k.includes('الهاتف') || k.includes('رقم'));
+            const classKey = Object.keys(row).find(k => k.includes('الفصل') || k.includes('الشعبة') || k.includes('الصف'));
+
+            return {
+                id: `std_${Math.random().toString(36).substr(2, 9)}`,
+                name: nameKey ? row[nameKey] : 'غير معروف',
+                parentPhone: phoneKey ? String(row[phoneKey]) : '-',
+                classId: selectedClassId || '', // Use currently selected class as fallback
+                tempClassName: classKey ? row[classKey] : ''
+            };
+        });
+
+        setImportPreview(mappedData);
+        setIsImporting(true);
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const confirmImport = () => {
+      const validStudents: Student[] = importPreview.map(p => ({
+          id: p.id,
+          name: p.name,
+          parentPhone: p.parentPhone,
+          classId: p.classId || classes.find(c => c.name === p.tempClassName)?.id || '',
+          absenceCount: 0
+      }));
+
+      onSetStudents([...students, ...validStudents]);
+      setIsImporting(false);
+      setImportPreview([]);
+      alert(`تم استيراد ${validStudents.length} طالب بنجاح!`);
+  };
+
   return (
     <div className="w-full bg-slate-50 min-h-screen font-sans pb-20" dir="rtl">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-[60] no-print">
-          <div className={`p-2 text-center text-[10px] font-black uppercase transition-colors ${isExpired ? 'bg-rose-600 text-white' : daysLeft < 5 ? 'bg-amber-500 text-white' : 'bg-slate-900 text-slate-400'}`}>
-              {isExpired ? 'انتهت صلاحية النظام - يرجى التجديد للاستمرار' : `باقة ${schoolMetadata.plan === 'trial' ? 'تجريبية' : 'مدفوعة'} | ينتهي الاشتراك خلال ${daysLeft} يوم`}
-          </div>
           <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
               <div className="flex items-center gap-4">
                   <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg"><SchoolIcon size={24}/></div>
@@ -90,7 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
               </div>
               <div className="flex gap-3">
-                  <button onClick={onResetSystem} className="text-slate-400 hover:text-rose-500 p-2 transition-colors" title="خروج"><LogOut size={20}/></button>
+                  <button onClick={onResetSystem} className="text-slate-400 hover:text-rose-500 p-2 transition-colors"><LogOut size={20}/></button>
                   <button onClick={() => setShowRenewModal(true)} className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl font-black text-xs border border-emerald-100 flex items-center gap-2 hover:bg-emerald-100 transition-all"> <CreditCard size={14}/> تجديد الاشتراك </button>
               </div>
           </div>
@@ -100,10 +148,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-1 overflow-x-auto justify-end">
               {[
                   {id:'dashboard', label:'الإحصائيات', icon: LayoutDashboard},
-                  {id:'students', label:'الطلاب', icon: GraduationCap},
-                  {id:'teachers', label:'المعلمون', icon: User},
+                  {id:'students', label:'الطلاب', icon: Users},
+                  {id:'teachers', label:'المعلمون', icon: UserCheck},
                   {id:'classes', label:'الجداول', icon: Grid},
-                  {id:'plan', label:'الخطط', icon: FileText},
+                  {id:'plan', label:'الخطط الأسبوعية', icon: FileText},
                   {id:'setup', label:'الإعدادات', icon: Settings}
               ].map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex items-center gap-2 px-5 py-3 rounded-xl font-black text-xs whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
@@ -113,7 +161,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
       </nav>
 
-      <main className={`max-w-7xl mx-auto px-6 py-8 transition-opacity ${isExpired ? 'opacity-30 pointer-events-none' : ''}`}>
+      <main className="max-w-7xl mx-auto px-6 py-8">
         
         {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-fadeIn">
@@ -138,7 +186,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm text-right">
-                        <h3 className="font-black text-xl mb-6 flex items-center justify-end gap-3 text-right">آخر الطلاب المضافين <Users className="text-indigo-600"/></h3>
+                        <h3 className="font-black text-xl mb-6 flex items-center justify-end gap-3">آخر الطلاب المضافين <Users className="text-indigo-600"/></h3>
                         <div className="space-y-4">
                             {students.slice(-5).reverse().map(s => (
                                 <div key={s.id} className="flex justify-between items-center p-4 border border-slate-100 rounded-2xl text-right">
@@ -179,7 +227,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn text-right">
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                        <h3 className="font-black text-slate-900 mb-8 flex items-center justify-end gap-3 text-xl">إضافة طالب <Plus className="text-indigo-600"/></h3>
+                        <div className="flex justify-between items-center mb-8">
+                             <button onClick={() => fileInputRef.current?.click()} className="text-indigo-600 text-xs font-bold hover:underline flex items-center gap-1">
+                                <FileUp size={14}/> استيراد من نور (Excel)
+                             </button>
+                             <h3 className="font-black text-slate-900 flex items-center gap-3 text-xl">إضافة طالب <Plus className="text-indigo-600"/></h3>
+                             <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload}/>
+                        </div>
                         <div className="space-y-5">
                             <div>
                                 <label className={labelModernClass}>اسم الطالب الثلاثي</label>
@@ -213,41 +267,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <input className="w-full bg-white border border-slate-200 rounded-2xl pr-12 py-3 text-xs outline-none focus:border-indigo-400 font-bold" placeholder="ابحث باسم الطالب..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-right text-sm">
-                                <thead className="bg-slate-50 text-slate-500 font-black text-[10px]">
-                                    <tr>
-                                        <th className="p-6">اسم الطالب</th>
-                                        <th className="p-6">الفصل</th>
-                                        <th className="p-6">الجوال</th>
-                                        <th className="p-6 text-center">العمليات</th>
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-black text-[10px]">
+                                <tr>
+                                    <th className="p-6">اسم الطالب</th>
+                                    <th className="p-6">الفصل</th>
+                                    <th className="p-6">الجوال</th>
+                                    <th className="p-6 text-center">العمليات</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-bold">
+                                {filteredStudents.map(student => (
+                                    <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-6"><div className="font-black text-slate-800">{student.name}</div></td>
+                                        <td className="p-6"><span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-xl text-[10px] font-black border border-indigo-100">{classes.find(c=>c.id===student.classId)?.name || 'بدون فصل'}</span></td>
+                                        <td className="p-6 font-mono text-xs text-slate-500">{student.parentPhone}</td>
+                                        <td className="p-6 text-center"><button onClick={() => { if(confirm('حذف الطالب؟')) onSetStudents(students.filter(s=>s.id!==student.id))}} className="p-2.5 text-rose-400 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={18}/></button></td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-bold">
-                                    {filteredStudents.map(student => (
-                                        <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-6">
-                                                <div className="font-black text-slate-800">{student.name}</div>
-                                            </td>
-                                            <td className="p-6">
-                                                <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-xl text-[10px] font-black border border-indigo-100">
-                                                    {classes.find(c=>c.id===student.classId)?.name || 'بدون فصل'}
-                                                </span>
-                                            </td>
-                                            <td className="p-6 font-mono text-xs text-slate-500">{student.parentPhone}</td>
-                                            <td className="p-6 text-center">
-                                                <button onClick={() => { if(confirm('حذف الطالب؟')) onSetStudents(students.filter(s=>s.id!==student.id))}} className="p-2.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"><Trash2 size={18}/></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         )}
 
+        {/* --- REST OF THE TABS --- */}
         {activeTab === 'teachers' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn text-right">
                 <div className="lg:col-span-1 space-y-6">
@@ -261,24 +306,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 if(!newTeacher.name || !newTeacher.username || !newTeacher.password) return alert('أكمل البيانات');
                                 onAddTeacher({ id: `tea_${Date.now()}`, ...newTeacher, assignedClasses: [] });
                                 setNewTeacher({ name: '', username: '', password: '', assignedClasses: [] });
-                            }} className={`w-full ${btnPrimaryClass} py-4`}>إنشاء حساب المعلم</button>
+                            }} className={`w-full ${btnPrimaryClass} py-4`}>إنشاء الحساب</button>
                         </div>
                     </div>
                 </div>
                 <div className="lg:col-span-2">
-                    <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8">
-                        <h3 className="font-black text-slate-800 mb-8 flex items-center justify-end gap-3 text-xl">كادر المعلمين <Users className="text-indigo-600"/></h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {teachers.map(t => (
-                                <div key={t.id} className="p-6 border border-slate-100 rounded-3xl flex flex-row-reverse justify-between items-center hover:border-indigo-200 transition-all bg-slate-50/30">
-                                    <div className="text-right">
-                                        <p className="font-black text-slate-800">{t.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold">@{t.username}</p>
-                                    </div>
-                                    <button onClick={() => { if(confirm('حذف المعلم؟')) onDeleteTeacher(t.id)}} className="p-2 text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={20}/></button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {teachers.map(t => (
+                            <div key={t.id} className="p-6 bg-white border border-slate-100 rounded-3xl flex flex-row-reverse justify-between items-center hover:border-indigo-200 transition-all shadow-sm">
+                                <div className="text-right">
+                                    <p className="font-black text-slate-800">{t.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">@{t.username}</p>
                                 </div>
-                            ))}
-                        </div>
+                                <button onClick={() => { if(confirm('حذف المعلم؟')) onDeleteTeacher(t.id)}} className="p-2 text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={20}/></button>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -402,7 +444,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'setup' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fadeIn text-right">
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-8">
-                    <h3 className="text-2xl font-black text-slate-800 flex flex-row-reverse items-center gap-3">إعدادات المرويسة <Settings className="text-indigo-600"/></h3>
+                    <h3 className="text-2xl font-black text-slate-800 flex flex-row-reverse items-center gap-3">إعدادات المرويسة والترويسة <Settings className="text-indigo-600"/></h3>
                     <input className={inputModernClass} placeholder="اسم الوزارة" value={schoolSettings.ministryName} onChange={e=>setSchoolSettings({...schoolSettings, ministryName:e.target.value})}/>
                     <input className={inputModernClass} placeholder="اسم المدرسة" value={schoolSettings.schoolName} onChange={e=>setSchoolSettings({...schoolSettings, schoolName:e.target.value})}/>
                     <input className={inputModernClass} placeholder="رابط الشعار" value={schoolSettings.logoUrl} onChange={e=>setSchoolSettings({...schoolSettings, logoUrl:e.target.value})}/>
@@ -412,7 +454,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 </div>
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-8">
-                    <h3 className="text-2xl font-black text-slate-800 flex flex-row-reverse items-center gap-3">إدارة المواد <Book className="text-indigo-600"/></h3>
+                    <h3 className="text-2xl font-black text-slate-800 flex flex-row-reverse items-center gap-3">إدارة المواد الدراسية <Book className="text-indigo-600"/></h3>
                     <div className="flex flex-row-reverse gap-4">
                         <input className={inputModernClass} placeholder="اسم المادة..." value={newSubject.name} onChange={e=>setNewSubject({...newSubject, name:e.target.value})}/>
                         <button onClick={() => {
@@ -434,9 +476,66 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </main>
 
+      {/* Import Modal */}
+      {isImporting && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+              <div className="bg-white rounded-[3rem] w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl animate-slideDown border border-slate-100 overflow-hidden">
+                  <div className="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                      <div>
+                          <h3 className="text-2xl font-black flex items-center gap-2"><UploadCloud/> معالجة بيانات الطلاب</h3>
+                          <p className="text-indigo-100 text-xs mt-1">تم اكتشاف {importPreview.length} سجل في ملفك</p>
+                      </div>
+                      <button onClick={() => setIsImporting(false)} className="bg-white/10 p-2 rounded-full hover:bg-white/20 transition-all"><X size={24}/></button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto p-8">
+                      <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6 flex items-start gap-3 text-amber-800 text-sm">
+                          <AlertCircle className="shrink-0" size={20}/>
+                          <p>يرجى التأكد من ربط الطلاب بالفصول الصحيحة. إذا لم يتم اكتشاف الفصل تلقائياً، سيتم الاستيراد بدون فصل ويمكنك تحديثه لاحقاً.</p>
+                      </div>
+                      
+                      <table className="w-full text-right">
+                          <thead className="sticky top-0 bg-white border-b-2 border-slate-100 text-slate-400 text-xs font-black">
+                              <tr>
+                                  <th className="pb-4 pt-2 px-4">اسم الطالب</th>
+                                  <th className="pb-4 pt-2 px-4">رقم الجوال</th>
+                                  <th className="pb-4 pt-2 px-4">الفصل المكتشف</th>
+                                  <th className="pb-4 pt-2 px-4">الإجراء</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                              {importPreview.map((p, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                      <td className="py-4 px-4 font-bold text-slate-800">{p.name}</td>
+                                      <td className="py-4 px-4 font-mono text-xs">{p.parentPhone}</td>
+                                      <td className="py-4 px-4">
+                                          {classes.find(c => c.name === p.tempClassName) ? (
+                                              <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{p.tempClassName}</span>
+                                          ) : (
+                                              <span className="bg-rose-50 text-rose-500 px-3 py-1 rounded-full text-[10px] font-black">{p.tempClassName || 'غير محدد'}</span>
+                                          )}
+                                      </td>
+                                      <td className="py-4 px-4">
+                                          <button onClick={() => setImportPreview(importPreview.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors"><Trash2 size={16}/></button>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+
+                  <div className="p-8 border-t border-slate-100 bg-slate-50 flex gap-4">
+                      <button onClick={confirmImport} className={`flex-1 ${btnPrimaryClass} py-4`}><Check size={20}/> تأكيد استيراد البيانات </button>
+                      <button onClick={() => setIsImporting(false)} className={`${btnSecondaryClass} px-10`}> إلغاء </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Renew Modal */}
       {showRenewModal && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-              <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-slideDown">
+              <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-slideDown border border-slate-100">
                   <h3 className="text-3xl font-black mb-8 text-center">تجديد الاشتراك</h3>
                   <div className="space-y-6">
                       <div className="grid grid-cols-2 gap-4">
@@ -449,13 +548,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <p className="text-2xl font-black text-indigo-900">{pricing.annual} {pricing.currency}</p>
                           </button>
                       </div>
-                      <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-5 text-center font-black" placeholder="أدخل كود التفعيل" id="activationCodeInput"/>
+                      <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-5 text-center font-black outline-none focus:border-indigo-500" placeholder="أدخل كود التفعيل" id="activationCodeInput"/>
                       <button 
                         onClick={async () => {
                             const val = (document.getElementById('activationCodeInput') as HTMLInputElement).value;
                             const ok = await onRenewSubscription(schoolId, 'annual', val);
-                            if (ok) { alert('تم التجديد!'); setShowRenewModal(false); }
-                            else alert('الكود غير صحيح');
+                            if (ok) { alert('تم التجديد بنجاح!'); setShowRenewModal(false); }
+                            else alert('الكود غير صحيح، يرجى التواصل مع الدعم الفني');
                         }}
                         className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-slate-200"
                       > تفعيل الآن </button>
