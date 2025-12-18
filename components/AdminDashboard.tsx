@@ -2,8 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { ClassGroup, Student, PlanEntry, ScheduleSlot, WeekInfo, Teacher, ArchivedPlan, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from '../types';
 import WeeklyPlanTemplate from './WeeklyPlanTemplate';
-// Added CheckCircle to the list of imports from lucide-react
-import { Users, FileText, Printer, Plus, Trash2, Grid, BookOpen, Settings, Book, UserCheck, CreditCard, LayoutDashboard, LogOut, School as SchoolIcon, Sparkles, UserPlus, Search, X, FileUp, UploadCloud, Check, AlertCircle, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import { Users, FileText, Printer, Plus, Trash2, Grid, BookOpen, Settings, Book, UserCheck, CreditCard, LayoutDashboard, LogOut, School as SchoolIcon, Sparkles, UserPlus, Search, X, FileUp, UploadCloud, Check, AlertCircle, AlertTriangle, Info, CheckCircle, Table } from 'lucide-react';
 import { DAYS_OF_WEEK } from '../services/data';
 import * as XLSX from 'xlsx';
 
@@ -102,42 +101,84 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const filteredStudents = useMemo(() => students.filter(s => s.name.includes(searchTerm)), [students, searchTerm]);
 
+  // --- Smart Importer Logic ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (evt) => {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws);
-        const mappedData = data.map((row: any) => {
-            const nameKey = Object.keys(row).find(k => k.includes('اسم الطالب') || k.includes('الاسم'));
-            const phoneKey = Object.keys(row).find(k => k.includes('جوال') || k.includes('رقم'));
-            const classKey = Object.keys(row).find(k => k.includes('الفصل') || k.includes('الصف'));
-            return {
-                id: `std_${Math.random().toString(36).substr(2, 9)}`,
-                name: nameKey ? row[nameKey] : 'غير معروف',
-                parentPhone: phoneKey ? String(row[phoneKey]) : '-',
-                classId: selectedClassId || '',
-                tempClassName: classKey ? row[classKey] : ''
-            };
-        });
-        setImportPreview(mappedData);
-        setIsImporting(true);
+        try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            
+            // Convert to array of arrays to find the real header row
+            const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            // Find the row that likely contains headers (contains "اسم" or "هوية" or "جوال")
+            let headerRowIndex = -1;
+            const keywords = ['اسم', 'طالب', 'هوية', 'جوال', 'رقم', 'فصل', 'صف'];
+            
+            for (let i = 0; i < Math.min(rows.length, 20); i++) {
+                const row = rows[i];
+                if (row.some(cell => typeof cell === 'string' && keywords.some(k => cell.includes(k)))) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            if (headerRowIndex === -1) {
+                alert("لم يتم التعرف على ترويسة البيانات في الملف. تأكد من أن الملف يحتوي على أعمدة واضحة.");
+                return;
+            }
+
+            // Extract data starting from the header row
+            const dataRows = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+            
+            const mappedData = dataRows.map((row: any) => {
+                const keys = Object.keys(row);
+                
+                // Fuzzy Search for columns
+                const nameKey = keys.find(k => k.includes('اسم') && k.includes('طالب')) || keys.find(k => k.includes('الاسم')) || keys[0];
+                const phoneKey = keys.find(k => k.includes('جوال')) || keys.find(k => k.includes('هاتف')) || keys.find(k => k.includes('رقم'));
+                const classKey = keys.find(k => k.includes('فصل')) || keys.find(k => k.includes('شعبة')) || keys.find(k => k.includes('صف'));
+                
+                return {
+                    id: `std_${Math.random().toString(36).substr(2, 9)}`,
+                    name: row[nameKey] || 'اسم غير معروف',
+                    parentPhone: row[phoneKey] ? String(row[phoneKey]).replace(/^966/, '0') : '-',
+                    classId: selectedClassId || '', // Default to current selection
+                    tempClassName: row[classKey] || ''
+                };
+            }).filter(s => s.name && s.name !== 'اسم غير معروف');
+
+            setImportPreview(mappedData);
+            setIsImporting(true);
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء قراءة الملف. يرجى التأكد من صيغة الملف.");
+        }
     };
     reader.readAsBinaryString(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const confirmImport = () => {
       const validStudents: Student[] = importPreview.map(p => ({
-          id: p.id, name: p.name, parentPhone: p.parentPhone,
-          classId: p.classId || classes.find(c => c.name === p.tempClassName)?.id || '',
+          id: p.id,
+          name: p.name,
+          parentPhone: p.parentPhone,
+          classId: p.classId || classes.find(c => c.name === p.tempClassName || c.name.includes(p.tempClassName))?.id || '',
           absenceCount: 0
       }));
+
       onSetStudents([...students, ...validStudents]);
       setIsImporting(false);
       setImportPreview([]);
+      alert(`تم بنجاح استيراد ${validStudents.length} طالباً إلى النظام.`);
   };
 
   return (
@@ -240,13 +281,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn text-right">
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600"></div>
                         <div className="flex justify-between items-center mb-8">
-                             <button onClick={() => fileInputRef.current?.click()} className="text-indigo-600 text-xs font-bold hover:underline flex items-center gap-1">
-                                <FileUp size={14}/> استيراد من نور (Excel)
+                             <button onClick={() => fileInputRef.current?.click()} className="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-xs font-black border border-indigo-100">
+                                <UploadCloud size={18}/> استيراد ذكي (نور)
                              </button>
                              <h3 className="font-black text-slate-900 flex items-center gap-3 text-xl">إضافة طالب <Plus className="text-indigo-600"/></h3>
-                             <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload}/>
+                             <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls, .csv" onChange={handleFileUpload}/>
                         </div>
                         <div className="space-y-5">
                             <div>
@@ -429,7 +471,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
-        {/* --- REST OF THE TABS REMAIN SAME BUT WRAPPED IN PROPER STRUCTURE --- */}
         {activeTab === 'teachers' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn text-right">
                 <div className="lg:col-span-1 space-y-6">
@@ -529,18 +570,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </main>
 
-      {/* Modals for Import and Renew remain as they are */}
+      {/* Smart Import Modal */}
       {isImporting && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
               <div className="bg-white rounded-[3rem] w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl animate-slideDown border border-slate-100 overflow-hidden">
                   <div className="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0">
                       <div>
-                          <h3 className="text-2xl font-black flex items-center gap-2"><UploadCloud/> معالجة بيانات الطلاب</h3>
-                          <p className="text-indigo-100 text-xs mt-1">تم اكتشاف {importPreview.length} سجل في ملفك</p>
+                          <h3 className="text-2xl font-black flex items-center gap-2"><UploadCloud/> المستورد الذكي للطلاب</h3>
+                          <p className="text-indigo-100 text-xs mt-1">تم تحليل الملف واكتشاف {importPreview.length} سجلاً بنجاح.</p>
                       </div>
                       <button onClick={() => setIsImporting(false)} className="bg-white/10 p-2 rounded-full hover:bg-white/20 transition-all"><X size={24}/></button>
                   </div>
+                  
                   <div className="flex-1 overflow-auto p-8">
+                      <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-6 flex items-start gap-3 text-amber-800 text-sm">
+                          <AlertCircle className="shrink-0" size={20}/>
+                          <div>
+                            <p className="font-black">مراجعة ذكية:</p>
+                            <p>تأكد من أن أسماء الفصول المكتشفة تتطابق مع المسجل لديك. إذا لم يتوفر فصل، سيتم استيراد الطالب بدون فصل ويمكنك نقله لاحقاً.</p>
+                          </div>
+                      </div>
+                      
                       <table className="w-full text-right">
                           <thead className="sticky top-0 bg-white border-b-2 border-slate-100 text-slate-400 text-xs font-black">
                               <tr>
@@ -551,27 +601,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
-                              {importPreview.map((p, idx) => (
-                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                      <td className="py-4 px-4 font-bold text-slate-800">{p.name}</td>
-                                      <td className="py-4 px-4 font-mono text-xs">{p.parentPhone}</td>
-                                      <td className="py-4 px-4">
-                                          {classes.find(c => c.name === p.tempClassName) ? (
-                                              <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{p.tempClassName}</span>
-                                          ) : (
-                                              <span className="bg-rose-50 text-rose-500 px-3 py-1 rounded-full text-[10px] font-black">{p.tempClassName || 'غير محدد'}</span>
-                                          )}
-                                      </td>
-                                      <td className="py-4 px-4">
-                                          <button onClick={() => setImportPreview(importPreview.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors"><Trash2 size={16}/></button>
-                                      </td>
-                                  </tr>
-                              ))}
+                              {importPreview.map((p, idx) => {
+                                  const classExists = classes.find(c => c.name === p.tempClassName || c.name.includes(p.tempClassName));
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-4 px-4 font-bold text-slate-800">{p.name}</td>
+                                        <td className="py-4 px-4 font-mono text-xs">{p.parentPhone}</td>
+                                        <td className="py-4 px-4">
+                                            {classExists ? (
+                                                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">{classExists.name}</span>
+                                            ) : (
+                                                <span className="bg-rose-50 text-rose-500 px-3 py-1 rounded-full text-[10px] font-black">{p.tempClassName || 'غير محدد'}</span>
+                                            )}
+                                        </td>
+                                        <td className="py-4 px-4">
+                                            <button onClick={() => setImportPreview(importPreview.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 transition-colors"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                  );
+                              })}
                           </tbody>
                       </table>
                   </div>
+
                   <div className="p-8 border-t border-slate-100 bg-slate-50 flex gap-4">
-                      <button onClick={confirmImport} className={`flex-1 ${btnPrimaryClass} py-4`}><Check size={20}/> تأكيد استيراد البيانات </button>
+                      <button onClick={confirmImport} className={`flex-1 ${btnPrimaryClass} py-4`}><Check size={20}/> تأكيد استيراد {importPreview.length} طالب </button>
+                      <button onClick={() => setIsImporting(false)} className={`${btnSecondaryClass} px-10`}> إلغاء </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Renew Modal */}
+      {showRenewModal && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+              <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-slideDown border border-slate-100">
+                  <h3 className="text-3xl font-black mb-8 text-center">تجديد الاشتراك</h3>
+                  <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                          <button className="p-6 border-2 border-slate-100 rounded-[2rem] text-center bg-indigo-50/20">
+                              <p className="text-[10px] font-black text-slate-400 mb-2">الباقة الفصلية</p>
+                              <p className="text-2xl font-black text-slate-900">{pricing.quarterly} {pricing.currency}</p>
+                          </button>
+                          <button className="p-6 border-2 border-indigo-600 bg-indigo-50/50 rounded-[2rem] text-center shadow-xl">
+                              <p className="text-[10px] font-black text-indigo-600 mb-2">الباقة السنوية</p>
+                              <p className="text-2xl font-black text-indigo-900">{pricing.annual} {pricing.currency}</p>
+                          </button>
+                      </div>
+                      <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-5 text-center font-black outline-none focus:border-indigo-500" placeholder="أدخل كود التفعيل" id="activationCodeInput"/>
+                      <button 
+                        onClick={async () => {
+                            const val = (document.getElementById('activationCodeInput') as HTMLInputElement).value;
+                            const ok = await onRenewSubscription(schoolId, 'annual', val);
+                            if (ok) { alert('تم التجديد بنجاح!'); setShowRenewModal(false); }
+                            else alert('الكود غير صحيح، يرجى التواصل مع الدعم الفني');
+                        }}
+                        className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-slate-200"
+                      > تفعيل الآن </button>
+                      <button onClick={()=>setShowRenewModal(false)} className="w-full text-slate-400 font-bold">إلغاء</button>
                   </div>
               </div>
           </div>

@@ -46,17 +46,17 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; }
 
-// Fixed: Explicitly extended from Component and initialized state to satisfy TypeScript property access
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false };
-
+// Fixed: Explicitly extended from React.Component to ensure props and state property access is correctly typed
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError() { return { hasError: true }; }
+  
   render() {
-    // Fixed: Accessed state via this.state
+    // Fixed: Accessed state via this.state and props via this.props
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center" dir="rtl">
@@ -67,7 +67,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
-    // Fixed: Accessed children via this.props.children
     return this.props.children;
   }
 }
