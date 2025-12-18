@@ -1,17 +1,15 @@
 
-// @google/genai used via context in child components if needed
 import React, { useState, useEffect, ReactNode, Suspense, Component } from 'react';
 import { PlanEntry, Teacher, ArchivedPlan, WeekInfo, ClassGroup, ScheduleSlot, Student, SchoolSettings, Subject, AttendanceRecord, Message, PricingConfig } from './types';
 import { UserCog, ShieldCheck, Search, AlertOctagon, X, RefreshCcw, AlertTriangle, Loader2, Save, Calendar, Clock, CreditCard, Lock, Key, School as SchoolIcon, CheckCircle, Mail, User, UserCheck, ArrowRight, ArrowLeft, Phone, Smartphone, Wallet, Globe, LogIn, Shield, TrendingUp, Link as LinkIcon, LogOut, Rocket, Fingerprint, LockKeyhole, HelpCircle, Sparkles, LayoutDashboard } from 'lucide-react';
 import { initFirebase, saveSchoolData, loadSchoolData, FirebaseConfig, getDB, saveSystemData, loadSystemData } from './services/firebase';
 import { sendActivationEmail } from './services/emailService';
 
-// --- Lazy Load Heavy Components ---
+// --- Lazy Load Components ---
 const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
 const TeacherPortal = React.lazy(() => import('./components/TeacherPortal'));
 const SystemDashboard = React.lazy(() => import('./components/SystemDashboard'));
 
-// --- Constants & Styles ---
 const inputModernClass = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all text-slate-700 font-medium";
 
 enum ViewState { HOME, ADMIN, TEACHER }
@@ -45,20 +43,29 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 };
 
 // --- Error Boundary ---
-interface ErrorBoundaryProps { children: ReactNode; }
+// Fixed ErrorBoundaryProps by making children optional to resolve JSX missing property error
+interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-// Changed to extend Component directly from React to ensure 'props' is typed correctly
+// Fixed ErrorBoundary by explicitly declaring state property to resolve access errors
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: null };
-  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { 
+    return { hasError: true, error }; 
+  }
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center" dir="rtl">
           <AlertTriangle size={64} className="text-red-500 mb-4" />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">عذراً، حدث خطأ في النظام</h1>
-          <button onClick={() => {localStorage.clear(); window.location.reload();}} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"><RefreshCcw size={20} /> إصلاح النظام</button>
+          <button onClick={() => {localStorage.clear(); window.location.reload();}} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"><RefreshCcw size={20} /> إعادة تحميل النظام</button>
         </div>
       );
     }
@@ -187,7 +194,7 @@ const App: React.FC = () => {
         setIsRegistering(false);
         setShowRegisterModal(false);
         setCurrentSchoolId(newId);
-        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول الخاص بك هو: ${newId}\nلقد أرسلنا نسخة من الكود إلى بريدك الإلكتروني.`);
+        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول: ${newId}`);
     };
 
     const handleUpgradeSubscription = async (id: string, plan: string, code: string) => {
@@ -255,26 +262,26 @@ const App: React.FC = () => {
                 </nav>
 
                 <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                    <div className="space-y-10 text-center lg:text-right animate-fadeIn">
+                    <div className="space-y-10 text-center lg:text-right">
                         <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-5 py-2 rounded-full text-xs font-black border border-indigo-100 shadow-sm">
                             <Sparkles size={16} /> الحل الأمثل للمدارس الذكية 2024
                         </div>
                         <h1 className="text-5xl lg:text-7xl font-black text-slate-900 leading-[1.1]">
-                            نظام إدارة <br/>
-                            <span className="bg-clip-text text-transparent bg-gradient-to-l from-indigo-600 to-purple-600">الخطط الأسبوعية</span>
+                            إدارة ذكية <br/>
+                            <span className="bg-clip-text text-transparent bg-gradient-to-l from-indigo-600 to-purple-600">لخطط مدرستك</span>
                         </h1>
                         <p className="text-lg text-slate-500 max-w-xl">
-                            وفر الوقت والجهد في إعداد الجداول والخطط الأسبوعية ورصد الغياب بضغطة زر. نظام سحابي متكامل يجمع بين ذكاء التخطيط وسهولة الاستخدام.
+                            نظام سحابي متكامل يجمع بين ذكاء التخطيط وسهولة الاستخدام للمعلمين والإدارة.
                         </p>
-                        <button onClick={() => setShowRegisterModal(true)} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl flex items-center justify-center gap-3 group mx-auto lg:mx-0">
-                            اشترك الآن مجاناً <ArrowLeft className="group-hover:-translate-x-1 transition-transform" size={20}/>
+                        <button onClick={() => setShowRegisterModal(true)} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl flex items-center justify-center gap-3 mx-auto lg:mx-0">
+                            اشترك الآن مجاناً <ArrowLeft size={20}/>
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-12 relative overflow-hidden animate-slideDown">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-12 relative animate-slideDown">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16"></div>
                         <h2 className="text-3xl font-black text-slate-900 mb-2">الدخول للمدرسة</h2>
-                        <p className="text-slate-400 text-sm mb-10 font-medium">أدخل كود المدرسة الخاص بك للوصول للنظام.</p>
+                        <p className="text-slate-400 text-sm mb-10 font-medium">أدخل كود المدرسة (ID) للوصول للنظام.</p>
                         <form onSubmit={(e) => {
                             e.preventDefault();
                             const code = (e.currentTarget.elements.namedItem('schoolCode') as HTMLInputElement).value;
@@ -282,7 +289,7 @@ const App: React.FC = () => {
                             if (school) {
                                 if (!school.isActive) alert('هذا الحساب معطل حالياً');
                                 else setCurrentSchoolId(code);
-                            } else alert('كود المدرسة غير صحيح، تأكد من بريدك الإلكتروني.');
+                            } else alert('كود المدرسة غير صحيح.');
                         }} className="space-y-8">
                             <div className="relative">
                                 <input name="schoolCode" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-5 text-2xl font-mono font-black text-indigo-600 outline-none focus:border-indigo-500 text-center" placeholder="sch_xxxxx" />
@@ -299,13 +306,13 @@ const App: React.FC = () => {
                             <div className="bg-indigo-600 p-10 text-white"><h3 className="text-3xl font-black">تسجيل مدرسة جديدة</h3></div>
                             <form onSubmit={handleRegisterSchool} className="p-10 space-y-4">
                                 <input required className={inputModernClass} placeholder="اسم المدرسة" value={regForm.name} onChange={e=>setRegForm({...regForm, name:e.target.value})} />
-                                <input required className={inputModernClass} placeholder="البريد الإلكتروني (لاستلام كود الدخول)" value={regForm.email} onChange={e=>setRegForm({...regForm, email:e.target.value})} />
+                                <input required className={inputModernClass} placeholder="البريد الإلكتروني" value={regForm.email} onChange={e=>setRegForm({...regForm, email:e.target.value})} />
                                 <input required className={inputModernClass} placeholder="رقم الجوال" value={regForm.phone} onChange={e=>setRegForm({...regForm, phone:e.target.value})} />
                                 <div className="grid grid-cols-2 gap-4 border-t pt-4">
                                     <input required className={inputModernClass} placeholder="اسم مستخدم المدير" value={regForm.username} onChange={e=>setRegForm({...regForm, username:e.target.value})} />
                                     <input required className={inputModernClass} type="password" placeholder="كلمة المرور" value={regForm.password} onChange={e=>setRegForm({...regForm, password:e.target.value})} />
                                 </div>
-                                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-100">إنشاء الحساب وبدء التجربة</button>
+                                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-100">تفعيل التجربة المجانية</button>
                                 <button type="button" onClick={()=>setShowRegisterModal(false)} className="w-full text-slate-400 font-bold mt-2">إلغاء</button>
                             </form>
                         </div>
@@ -320,7 +327,7 @@ const App: React.FC = () => {
                             <form onSubmit={handleSystemLogin} className="space-y-4">
                                 <input className="w-full bg-slate-700/50 border border-slate-600 rounded-2xl px-5 py-4 outline-none focus:border-emerald-500 font-bold" placeholder="اسم المستخدم" value={sysUsername} onChange={e=>setSysUsername(e.target.value)}/>
                                 <input className="w-full bg-slate-700/50 border border-slate-600 rounded-2xl px-5 py-4 outline-none focus:border-emerald-500 font-bold" type="password" placeholder="كلمة المرور" value={sysPassword} onChange={e=>setSysPassword(e.target.value)}/>
-                                <button className="w-full bg-emerald-600 py-4 rounded-2xl font-black text-lg shadow-lg">دخول لوحة التحكم</button>
+                                <button className="w-full bg-emerald-600 py-4 rounded-2xl font-black text-lg shadow-lg">دخول</button>
                                 <button type="button" onClick={()=>setShowSystemLoginModal(false)} className="w-full text-slate-500 mt-2 font-bold">إغلاق</button>
                             </form>
                         </div>
@@ -339,33 +346,29 @@ const SchoolSystem: React.FC<{schoolId: string, schoolMetadata: SchoolMetadata, 
     const [loginData, setLoginData] = useState({user:'', pass:''});
     const [loginError, setLoginError] = useState('');
 
-    const [schoolSettings, setSchoolSettings] = useSyncedState<SchoolSettings>({...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 'settings', schoolId, isCloudEnabled);
-    const [weekInfo, setWeekInfo] = useSyncedState<WeekInfo>({startDate:'', endDate:'', weekNumber:'الأسبوع الأول', semester:'الأول'}, 'week', schoolId, isCloudEnabled);
-    const [subjects, setSubjects] = useSyncedState<Subject[]>([], 'subjects', schoolId, isCloudEnabled);
-    const [classes, setClasses] = useSyncedState<ClassGroup[]>([], 'classes', schoolId, isCloudEnabled);
-    const [schedule, setSchedule] = useSyncedState<ScheduleSlot[]>([], 'schedule', schoolId, isCloudEnabled);
-    const [students, setStudents] = useSyncedState<Student[]>([], 'students', schoolId, isCloudEnabled);
-    const [teachers, setTeachers] = useSyncedState<Teacher[]>([], 'teachers', schoolId, isCloudEnabled);
-    const [planEntries, setPlanEntries] = useSyncedState<PlanEntry[]>([], 'plans', schoolId, isCloudEnabled);
-    const [archivedPlans, setArchivedPlans] = useSyncedState<ArchivedPlan[]>([], 'archives', schoolId, isCloudEnabled);
-    const [attendanceRecords, setAttendanceRecords] = useSyncedState<AttendanceRecord[]>([], 'attendance', schoolId, isCloudEnabled);
-    const [messages, setMessages] = useSyncedState<Message[]>([], 'messages', schoolId, isCloudEnabled);
+    const [schoolSettings, setSchoolSettings] = useSyncedState<SchoolSettings>({...DEFAULT_SCHOOL_SETTINGS, schoolName: schoolMetadata.name}, 'settings', schoolId, isCloudConnected);
+    const [weekInfo, setWeekInfo] = useSyncedState<WeekInfo>({startDate:'', endDate:'', weekNumber:'الأسبوع الأول', semester:'الأول'}, 'week', schoolId, isCloudConnected);
+    const [subjects, setSubjects] = useSyncedState<Subject[]>([], 'subjects', schoolId, isCloudConnected);
+    const [classes, setClasses] = useSyncedState<ClassGroup[]>([], 'classes', schoolId, isCloudConnected);
+    const [schedule, setSchedule] = useSyncedState<ScheduleSlot[]>([], 'schedule', schoolId, isCloudConnected);
+    const [students, setStudents] = useSyncedState<Student[]>([], 'students', schoolId, isCloudConnected);
+    const [teachers, setTeachers] = useSyncedState<Teacher[]>([], 'teachers', schoolId, isCloudConnected);
+    const [planEntries, setPlanEntries] = useSyncedState<PlanEntry[]>([], 'plans', schoolId, isCloudConnected);
+    const [archivedPlans, setArchivedPlans] = useSyncedState<ArchivedPlan[]>([], 'archives', schoolId, isCloudConnected);
+    const [attendanceRecords, setAttendanceRecords] = useSyncedState<AttendanceRecord[]>([], 'attendance', schoolId, isCloudConnected);
+    const [messages, setMessages] = useSyncedState<Message[]>([], 'messages', schoolId, isCloudConnected);
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
-        // Check Admin
         if (loginData.user === schoolMetadata.adminUsername && loginData.pass === schoolMetadata.adminPassword) { 
-            setView(ViewState.ADMIN); 
-            return; 
+            setView(ViewState.ADMIN); return; 
         }
-        // Check Teachers
         const t = teachers.find(x => x.username === loginData.user && (x.password === loginData.pass || x.id === loginData.pass));
         if (t) { 
             setSelectedTeacherId(t.id); 
-            setView(ViewState.TEACHER); 
-            return; 
+            setView(ViewState.TEACHER); return; 
         }
-        setLoginError('اسم المستخدم أو كلمة المرور غير صحيحة');
+        setLoginError('بيانات الدخول غير صحيحة');
     };
 
     if (view === ViewState.ADMIN) {
