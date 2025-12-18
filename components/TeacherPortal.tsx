@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGroup, AttendanceRecord, Message, SchoolSettings } from '../types';
 import { DAYS_OF_WEEK } from '../services/data';
-import { Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer } from 'lucide-react';
+// Added User and MessageSquare imports to fix build errors
+import { User, MessageSquare, Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer, Sparkles, LayoutDashboard, Clock, History, LogOut } from 'lucide-react';
 import AttendanceReportTemplate from './AttendanceReportTemplate';
 
-// --- Styles ---
-const teacherInputClass = "w-full bg-gray-50 border-2 border-transparent rounded-xl px-4 py-3 text-sm font-medium text-gray-700 placeholder-gray-400 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 outline-none transition-all";
+const teacherInputClass = "w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 placeholder-slate-300 focus:bg-white focus:border-emerald-400 outline-none transition-all";
 
 interface TeacherPortalProps {
   teacher: Teacher;
@@ -24,41 +25,23 @@ interface TeacherPortalProps {
 }
 
 const TeacherPortal: React.FC<TeacherPortalProps> = ({
-  teacher,
-  schedule,
-  existingEntries,
-  weekInfo,
-  onSaveEntry,
-  subjects,
-  students,
-  classes,
-  attendanceRecords,
-  onMarkAttendance,
-  messages,
-  onSendMessage,
-  schoolSettings
+  teacher, schedule, existingEntries, weekInfo, onSaveEntry, subjects, students, classes, attendanceRecords, onMarkAttendance, messages, onSendMessage, schoolSettings
 }) => {
-  const [activeDay, setActiveDay] = useState<number | null>(0);
+  const [activeTab, setActiveTab] = useState<'schedule' | 'messages' | 'stats'>('schedule');
+  const [activeDay, setActiveDay] = useState<number | null>(new Date().getDay());
   const [showAttendanceModal, setShowAttendanceModal] = useState<boolean>(false);
-  const [showMessagesModal, setShowMessagesModal] = useState<boolean>(false);
   const [selectedClassForAttendance, setSelectedClassForAttendance] = useState<{classId: string, className: string} | null>(null);
   const [newMessageText, setNewMessageText] = useState('');
-  const [msgTab, setMsgTab] = useState<'inbox' | 'compose'>('inbox');
-  
-  // State for Report Printing
   const [showReportPreview, setShowReportPreview] = useState(false);
 
-  // Filter schedule for this teacher
-  const teacherSchedule = schedule.filter(s => s.teacherId === teacher.id);
+  const teacherSchedule = useMemo(() => schedule.filter(s => s.teacherId === teacher.id), [schedule, teacher.id]);
   const todayDate = new Date().toISOString().split('T')[0];
-
-  // Messaging Logic
   const myMessages = messages.filter(m => m.receiverId === teacher.id || m.receiverId === 'all' || m.senderId === teacher.id);
-  const unreadCount = messages.filter(m => (m.receiverId === teacher.id || m.receiverId === 'all') && !m.isRead).length; 
+  const unreadCount = messages.filter(m => (m.receiverId === teacher.id || m.receiverId === 'all') && !m.isRead).length;
 
   const handleSendToAdmin = () => {
     if (!newMessageText.trim()) return;
-    const msg: Message = {
+    onSendMessage({
         id: `msg_${Date.now()}`,
         senderId: teacher.id,
         senderName: teacher.name,
@@ -67,410 +50,181 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
         timestamp: new Date().toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'}),
         isRead: false,
         type: 'direct'
-    };
-    onSendMessage(msg);
+    });
     setNewMessageText('');
-    setMsgTab('inbox');
     alert('تم إرسال رسالتك للإدارة بنجاح');
   };
 
   const handleInputChange = (slot: ScheduleSlot, field: keyof PlanEntry, value: string) => {
-    // Find existing or create new
-    const existing = existingEntries.find(
-      e => e.dayIndex === slot.dayIndex && e.period === slot.period && e.classId === slot.classId
-    );
-
-    const newEntry: PlanEntry = existing
-      ? { ...existing, [field]: value }
-      : {
-          id: Date.now().toString(),
-          classId: slot.classId,
-          dayIndex: slot.dayIndex,
-          period: slot.period,
-          lessonTopic: '',
-          homework: '',
-          [field]: value
-        };
-    
-    onSaveEntry(newEntry);
+    const existing = existingEntries.find(e => e.dayIndex === slot.dayIndex && e.period === slot.period && e.classId === slot.classId);
+    onSaveEntry(existing ? { ...existing, [field]: value } : { id: `entry_${Date.now()}`, classId: slot.classId, dayIndex: slot.dayIndex, period: slot.period, lessonTopic: '', homework: '', [field]: value });
   };
 
   const getEntryValue = (slot: ScheduleSlot, field: keyof PlanEntry) => {
-    const entry = existingEntries.find(
-      e => e.dayIndex === slot.dayIndex && e.period === slot.period && e.classId === slot.classId
-    );
+    const entry = existingEntries.find(e => e.dayIndex === slot.dayIndex && e.period === slot.period && e.classId === slot.classId);
     return entry ? (entry[field] as string) : '';
   };
 
-  const openAttendance = (classId: string) => {
-    const cls = classes.find(c => c.id === classId);
-    setSelectedClassForAttendance({ classId, className: cls?.name || 'فصل غير معروف' });
-    setShowAttendanceModal(true);
-    setShowReportPreview(false); // Reset report view
-  };
-
-  const toggleAttendance = (studentId: string) => {
-     const currentRecord = attendanceRecords.find(r => r.studentId === studentId && r.date === todayDate);
-     const newStatus = currentRecord?.status === 'absent' ? 'present' : 'absent';
-     
-     onMarkAttendance({
-         date: todayDate,
-         studentId: studentId,
-         status: newStatus,
-         reportedBy: teacher.name,
-         timestamp: new Date().toLocaleTimeString('ar-SA')
-     });
-  };
-
-  const getAbsentStudents = () => {
-      if (!selectedClassForAttendance) return [];
-      return students.filter(s => 
-          s.classId === selectedClassForAttendance.classId && 
-          attendanceRecords.some(r => r.studentId === s.id && r.date === todayDate && r.status === 'absent')
-      );
-  };
-
-  const handlePrintReport = () => {
-      window.print();
-  };
-
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto pb-20 font-sans">
-      {/* Header Card */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl shadow-xl p-8 mb-8 text-white relative overflow-hidden no-print">
-        <div className="relative z-10 flex justify-between items-start">
-            <div>
-                <h2 className="text-3xl font-extrabold mb-1">بوابة المعلم</h2>
-                <p className="text-emerald-100 font-medium text-lg">أهلاً بك، أستاذ {teacher.name}</p>
-                <div className="mt-4 flex gap-3 text-sm font-bold bg-white/10 p-2 rounded-xl inline-flex backdrop-blur-sm border border-white/20">
-                    <span className="flex items-center gap-2"><Calendar size={16}/> {weekInfo.weekNumber}</span>
-                    <span className="w-px bg-white/30"></span>
-                    <span>{weekInfo.startDate} - {weekInfo.endDate}</span>
-                </div>
-            </div>
-            <button 
-                onClick={() => setShowMessagesModal(true)}
-                className="relative p-3 bg-white/20 hover:bg-white/30 rounded-2xl transition-all border border-white/20"
-            >
-                <MessageCircle size={28} className="text-white" />
-                {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full border-2 border-emerald-600 font-bold shadow-sm">
-                        {unreadCount}
-                    </span>
-                )}
-            </button>
-        </div>
-        <BookOpen className="absolute -bottom-6 -left-6 text-white/10 w-48 h-48 rotate-12 pointer-events-none" />
-      </div>
-
-      <div className="space-y-4 no-print">
-        {DAYS_OF_WEEK.map((day, dIndex) => {
-          const daySlots = teacherSchedule.filter(s => s.dayIndex === dIndex).sort((a,b) => a.period - b.period);
-          if (daySlots.length === 0) return null;
-
-          const isOpen = activeDay === dIndex;
-
-          return (
-            <div key={dIndex} className={`bg-white border transition-all duration-300 overflow-hidden ${isOpen ? 'rounded-2xl shadow-lg border-emerald-100 ring-2 ring-emerald-50' : 'rounded-xl shadow-sm border-gray-100 hover:border-emerald-200'}`}>
-              <button 
-                onClick={() => setActiveDay(isOpen ? null : dIndex)}
-                className={`w-full flex justify-between items-center p-5 transition-colors ${isOpen ? 'bg-emerald-50/50' : 'bg-white hover:bg-gray-50'}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${isOpen ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                      {dIndex + 1}
+    <div className="min-h-screen bg-slate-50 font-sans pb-24" dir="rtl">
+      {/* Teacher Header */}
+      <header className="bg-emerald-600 text-white p-8 no-print shadow-xl relative overflow-hidden">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
+              <div className="flex items-center gap-5">
+                  <div className="bg-white/10 p-4 rounded-[2rem] border border-white/20 backdrop-blur-md shadow-lg">
+                      <User size={40} className="text-white"/>
                   </div>
-                  <div className="text-right">
-                      <span className={`font-bold text-lg block ${isOpen ? 'text-emerald-900' : 'text-gray-700'}`}>{day}</span>
-                      <span className="text-xs text-gray-500 font-medium">
-                        {daySlots.length} حصص دراسية
-                      </span>
+                  <div className="text-center md:text-right">
+                      <h2 className="text-3xl font-black">أهلاً، أستاذ {teacher.name}</h2>
+                      <p className="text-emerald-100 font-bold mt-1 text-sm">{schoolSettings.schoolName}</p>
                   </div>
-                </div>
-                {isOpen ? <ChevronUp size={24} className="text-emerald-600" /> : <ChevronDown size={24} className="text-gray-400" />}
-              </button>
+              </div>
+              <div className="flex gap-3">
+                  <button onClick={() => setActiveTab('messages')} className="relative p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all border border-white/20">
+                      <MessageCircle size={24}/>
+                      {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-black animate-bounce">{unreadCount}</span>}
+                  </button>
+                  <button onClick={() => window.location.reload()} className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all border border-white/20"><LogOut size={24}/></button>
+              </div>
+          </div>
+          <Sparkles className="absolute -bottom-10 -left-10 text-white/5 w-64 h-64 pointer-events-none" />
+      </header>
 
-              {isOpen && (
-                <div className="p-5 space-y-6 animate-slideDown">
-                  {daySlots.map((slot) => {
-                     const subject = subjects.find(s => s.id === slot.subjectId);
-                     const classObj = classes.find(c => c.id === slot.classId);
-                     const bgColor = subject?.color.replace('text-', 'bg-opacity-20 bg-') || 'bg-gray-50';
-                     const borderColor = subject?.color.replace('text-', 'border-') || 'border-gray-200';
-                     
-                     return (
-                      <div key={slot.period} className="relative group">
-                         {/* Card Content */}
-                         <div className={`border rounded-2xl p-6 bg-white shadow-sm hover:shadow-md transition-all relative z-10`}>
-                             <div className="flex justify-between items-start mb-6 border-b border-gray-100 pb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-12 rounded-full ${subject?.color.replace('text-', 'bg-')}`}></div>
-                                    <div>
-                                        <h3 className="font-bold text-xl text-gray-800">{subject?.name}</h3>
-                                        <p className="text-sm font-medium text-gray-500 flex items-center gap-1">
-                                            <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600">{classObj?.name}</span>
-                                        </p>
+      {/* Teacher Navigation */}
+      <nav className="max-w-5xl mx-auto px-6 -mt-8 relative z-20 no-print">
+          <div className="bg-white p-2 rounded-3xl shadow-2xl border border-slate-100 flex items-center gap-1">
+              {[
+                  {id:'schedule', label:'جدولي والخطط', icon: Calendar},
+                  {id:'messages', label:'رسائل الإدارة', icon: MessageSquare},
+                  {id:'stats', label:'إحصائياتي', icon: LayoutDashboard}
+              ].map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-xs transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
+                      <tab.icon size={18}/> {tab.label}
+                  </button>
+              ))}
+          </div>
+      </nav>
+
+      <main className="max-w-5xl mx-auto px-6 py-10 animate-fadeIn">
+        {activeTab === 'schedule' && (
+            <div className="space-y-4 no-print">
+                {DAYS_OF_WEEK.map((day, dIdx) => {
+                    const daySlots = teacherSchedule.filter(s => s.dayIndex === dIdx).sort((a,b) => a.period - b.period);
+                    if (daySlots.length === 0) return null;
+                    const isOpen = activeDay === dIdx;
+
+                    return (
+                        <div key={day} className={`bg-white rounded-[2.5rem] border transition-all overflow-hidden ${isOpen ? 'shadow-xl border-emerald-100 ring-4 ring-emerald-50' : 'border-slate-100 shadow-sm'}`}>
+                            <button onClick={() => setActiveDay(isOpen ? null : dIdx)} className="w-full flex justify-between items-center p-8 bg-white hover:bg-slate-50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl ${isOpen ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{dIdx + 1}</div>
+                                    <div className="text-right">
+                                        <h3 className={`font-black text-xl ${isOpen ? 'text-emerald-900' : 'text-slate-800'}`}>{day}</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{daySlots.length} حصص دراسية</p>
                                     </div>
                                 </div>
-                                <div className="bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold shadow-inner">
-                                    الحصة {slot.period}
-                                </div>
-                             </div>
-                             
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                        <PenTool size={12}/> عنوان الدرس
-                                    </label>
-                                    <input 
-                                      type="text" 
-                                      className={teacherInputClass}
-                                      placeholder="ما هو موضوع الدرس اليوم؟"
-                                      value={getEntryValue(slot, 'lessonTopic')}
-                                      onChange={(e) => handleInputChange(slot, 'lessonTopic', e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                        <BookOpen size={12}/> الواجب المنزلي
-                                    </label>
-                                    <input 
-                                      type="text" 
-                                      className={teacherInputClass}
-                                      placeholder="تفاصيل الواجب..."
-                                      value={getEntryValue(slot, 'homework')}
-                                      onChange={(e) => handleInputChange(slot, 'homework', e.target.value)}
-                                    />
-                                </div>
-                             </div>
-                             <div className="mt-4 space-y-2">
-                                <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    ملاحظات إضافية
-                                </label>
-                                <input 
-                                  type="text" 
-                                  className={teacherInputClass}
-                                  placeholder="أي ملاحظات للطالب أو ولي الأمر..."
-                                  value={getEntryValue(slot, 'notes')}
-                                  onChange={(e) => handleInputChange(slot, 'notes', e.target.value)}
-                                />
-                             </div>
-                             
-                             <div className="flex justify-between items-center pt-6 mt-2">
-                                <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
-                                    <CheckCircle size={12}/> يتم الحفظ تلقائياً
-                                </span>
-                                <button 
-                                    onClick={() => openAttendance(slot.classId)}
-                                    className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl hover:bg-emerald-100 text-sm font-bold transition-all active:scale-95"
-                                >
-                                    <UserCheck size={18} />
-                                    <span>رصد الغياب</span>
-                                </button>
-                             </div>
-                         </div>
-                      </div>
-                     );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Attendance Modal */}
-      {showAttendanceModal && selectedClassForAttendance && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className={`bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slideDown ${showReportPreview ? '' : 'max-w-lg'}`}>
-                
-                {/* Modal Header */}
-                <div className="bg-slate-800 text-white p-5 flex justify-between items-center shrink-0 no-print">
-                    <div>
-                        <h3 className="font-bold text-lg flex items-center gap-2">
-                            <UserCheck size={20} className="text-emerald-400"/>
-                            {showReportPreview ? 'معاينة تقرير الغياب' : 'رصد الغياب'}
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1">{selectedClassForAttendance.className} | {new Date().toLocaleDateString('ar-SA')}</p>
-                    </div>
-                    <div className="flex gap-2">
-                        {showReportPreview && (
-                            <button onClick={handlePrintReport} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2">
-                                <Printer size={14}/> طباعة التقرير
+                                {isOpen ? <ChevronUp className="text-emerald-600"/> : <ChevronDown className="text-slate-300"/>}
                             </button>
-                        )}
-                        <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
-                            <X size={20}/>
-                        </button>
-                    </div>
-                </div>
-                
-                {/* Modal Content */}
-                <div className="flex-1 overflow-y-auto bg-slate-50 print:bg-white print:overflow-visible">
-                    {showReportPreview ? (
-                        <div className="p-8 flex justify-center page-container">
-                            <AttendanceReportTemplate 
-                                schoolSettings={schoolSettings}
-                                classGroup={{name: selectedClassForAttendance.className, id: selectedClassForAttendance.classId}}
-                                teacherName={teacher.name}
-                                date={todayDate}
-                                absentStudents={getAbsentStudents()}
-                            />
-                        </div>
-                    ) : (
-                        <div className="p-4">
-                            <div className="space-y-3">
-                                {students.filter(s => s.classId === selectedClassForAttendance.classId).length === 0 ? (
-                                    <div className="text-center py-12 flex flex-col items-center">
-                                        <div className="bg-white p-4 rounded-full shadow-sm mb-3"><UserCheck size={32} className="text-slate-300"/></div>
-                                        <p className="text-slate-500 font-bold">لا يوجد طلاب مسجلين في هذا الفصل</p>
-                                    </div>
-                                ) : (
-                                    students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
-                                        const record = attendanceRecords.find(r => r.studentId === student.id && r.date === todayDate);
-                                        const isAbsent = record?.status === 'absent';
 
+                            {isOpen && (
+                                <div className="p-8 space-y-8 animate-slideDown">
+                                    {daySlots.map(slot => {
+                                        const cls = classes.find(c => c.id === slot.classId);
+                                        const sub = subjects.find(s => s.id === slot.subjectId);
                                         return (
-                                            <div 
-                                                key={student.id}
-                                                onClick={() => toggleAttendance(student.id)}
-                                                className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all shadow-sm group ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200 hover:border-emerald-300'}`}
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm transition-colors ${isAbsent ? 'bg-rose-500' : 'bg-slate-200 text-slate-500 group-hover:bg-emerald-500 group-hover:text-white'}`}>
-                                                        {student.name.charAt(0)}
+                                            <div key={slot.period} className="p-8 border-2 border-slate-50 rounded-[2.5rem] bg-white shadow-sm hover:border-emerald-200 transition-all group">
+                                                <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-50">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-1.5 h-10 bg-emerald-500 rounded-full"></div>
+                                                        <div>
+                                                            <h4 className="font-black text-2xl text-slate-800">{sub?.name}</h4>
+                                                            <p className="text-xs font-bold text-slate-400">الفصل: <span className="text-emerald-600">{cls?.name}</span></p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className={`font-bold transition-colors ${isAbsent ? 'text-rose-800' : 'text-slate-700'}`}>{student.name}</p>
-                                                        <p className="text-xs text-slate-400">{student.parentPhone}</p>
+                                                    <span className="bg-slate-900 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg">الحصة {slot.period}</span>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex items-center gap-2"><PenTool size={14}/> موضوع الدرس</label>
+                                                        <input className={teacherInputClass} placeholder="ماذا ستشرح اليوم؟" value={getEntryValue(slot, 'lessonTopic')} onChange={e=>handleInputChange(slot, 'lessonTopic', e.target.value)} />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex items-center gap-2"><BookOpen size={14}/> الواجب المنزلي</label>
+                                                        <input className={teacherInputClass} placeholder="أدخل تفاصيل الواجب..." value={getEntryValue(slot, 'homework')} onChange={e=>handleInputChange(slot, 'homework', e.target.value)} />
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    {isAbsent ? (
-                                                        <span className="flex items-center gap-1 text-rose-600 bg-rose-100 px-3 py-1 rounded-lg font-bold text-xs">
-                                                            <XCircle size={14}/> غائب
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <CheckCircle size={14}/> حاضر
-                                                        </span>
-                                                    )}
+                                                <div className="mt-8 flex justify-between items-center">
+                                                    <div className="flex items-center gap-2 text-[10px] text-slate-300 font-bold"><CheckCircle size={14} className="text-emerald-400"/> حفظ تلقائي للبيانات</div>
+                                                    <button onClick={() => { setSelectedClassForAttendance({ classId: slot.classId, className: cls?.name || '' }); setShowAttendanceModal(true); }} className="bg-emerald-50 text-emerald-700 px-6 py-3 rounded-2xl font-black text-sm border border-emerald-100 flex items-center gap-2 hover:bg-emerald-100 transition-all"><UserCheck size={18}/> رصد الغياب</button>
                                                 </div>
                                             </div>
                                         );
-                                    })
-                                )}
-                            </div>
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    );
+                })}
+            </div>
+        )}
 
-                {/* Modal Footer */}
-                <div className="p-4 border-t bg-white flex justify-between items-center no-print">
-                    {!showReportPreview ? (
-                        <>
-                           <button 
-                                onClick={() => setShowReportPreview(true)}
-                                className="text-slate-500 hover:text-indigo-600 font-bold text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
-                           >
-                               <Printer size={18}/> معاينة كشف الغياب
-                           </button>
-                           <button 
-                                onClick={() => setShowAttendanceModal(false)}
-                                className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg"
-                           >
-                               حفظ وإغلاق
-                           </button>
-                        </>
-                    ) : (
-                        <button 
-                            onClick={() => setShowReportPreview(false)}
-                            className="text-slate-500 hover:text-slate-700 font-bold text-sm px-4 py-2"
-                        >
-                            عودة للقائمة
-                        </button>
-                    )}
+        {activeTab === 'messages' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-4">
+                    <h3 className="font-black text-xl mb-6 text-slate-800 flex items-center gap-3"><Bell className="text-emerald-600"/> الرسائل والتعميمات</h3>
+                    {myMessages.length === 0 && <div className="p-20 text-center bg-white rounded-[2.5rem] border border-slate-100 text-slate-400 font-bold italic">لا توجد رسائل حالياً</div>}
+                    {myMessages.map(m => (
+                        <div key={m.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative group hover:border-emerald-200 transition-all">
+                             <div className="flex justify-between items-center mb-3">
+                                <span className={`text-[10px] font-black px-3 py-1 rounded-full ${m.senderId === 'admin' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>{m.senderName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
+                             </div>
+                             <p className="text-slate-700 font-bold text-sm leading-relaxed">{m.content}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm h-fit">
+                    <h3 className="font-black text-lg mb-6">مراسلة الإدارة</h3>
+                    <textarea className="w-full h-40 bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-emerald-400 focus:bg-white transition-all resize-none" placeholder="اكتب رسالتك للإدارة هنا..." value={newMessageText} onChange={e=>setNewMessageText(e.target.value)} />
+                    <button onClick={handleSendToAdmin} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-lg mt-4 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"><Send size={20}/> إرسال </button>
                 </div>
             </div>
-        </div>
-      )}
+        )}
+      </main>
 
-      {/* Messaging Modal */}
-      {showMessagesModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
-              <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[600px] animate-slideDown">
-                  <div className="bg-indigo-600 text-white p-5 flex justify-between items-center">
+      {/* Attendance Modal */}
+      {showAttendanceModal && selectedClassForAttendance && (
+          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+               <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-slideDown flex flex-col max-h-[90vh]">
+                   <div className="bg-slate-900 text-white p-10 flex justify-between items-center shrink-0">
                        <div>
-                           <h3 className="font-bold text-lg flex items-center gap-2">
-                              <MessageCircle size={20}/>
-                              التواصل الداخلي
-                           </h3>
-                           <p className="text-indigo-200 text-xs">مع إدارة المدرسة</p>
+                           <h3 className="text-2xl font-black">رصد الغياب اليومي</h3>
+                           <p className="text-slate-400 font-bold mt-1">{selectedClassForAttendance.className} | {new Date().toLocaleDateString('ar-SA')}</p>
                        </div>
-                       <button onClick={() => setShowMessagesModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
-                           <X size={20}/>
-                       </button>
-                  </div>
-                  
-                  <div className="flex border-b bg-indigo-50/50 p-1 mx-4 mt-4 rounded-xl">
-                      <button 
-                        onClick={() => setMsgTab('inbox')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${msgTab === 'inbox' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}
-                      >
-                          الوارد
-                      </button>
-                      <button 
-                        onClick={() => setMsgTab('compose')}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${msgTab === 'compose' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}
-                      >
-                          رسالة جديدة
-                      </button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-4 bg-white">
-                      {msgTab === 'inbox' ? (
-                          <div className="space-y-3">
-                              {myMessages.filter(m => m.senderId !== teacher.id).length === 0 ? (
-                                  <div className="flex flex-col items-center justify-center h-64 text-center">
-                                      <div className="bg-gray-50 p-4 rounded-full mb-3"><Bell size={32} className="text-gray-300"/></div>
-                                      <p className="text-gray-400 font-bold">لا يوجد رسائل واردة</p>
-                                  </div>
-                              ) : (
-                                  myMessages.filter(m => m.senderId !== teacher.id).map(msg => (
-                                      <div key={msg.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 relative group hover:shadow-md transition-shadow">
-                                          <div className="flex justify-between items-start mb-2">
-                                              <span className="font-bold text-indigo-700 text-sm flex items-center gap-1.5">
-                                                  {msg.type === 'announcement' && <Bell size={14} className="text-amber-500" />}
-                                                  {msg.senderName}
-                                              </span>
-                                              <span className="text-[10px] text-gray-400 bg-white px-2 py-1 rounded-full border border-gray-100">{msg.timestamp}</span>
-                                          </div>
-                                          <p className="text-gray-700 text-sm leading-relaxed">{msg.content}</p>
-                                      </div>
-                                  ))
-                              )}
-                          </div>
-                      ) : (
-                          <div className="h-full flex flex-col">
-                              <label className="block text-sm font-bold text-gray-700 mb-2">محتوى الرسالة:</label>
-                              <div className="relative flex-1 mb-4">
-                                  <textarea 
-                                    className="w-full h-full border-2 border-gray-100 rounded-xl p-4 text-sm resize-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 outline-none transition-all bg-gray-50 focus:bg-white"
-                                    placeholder="اكتب رسالتك للإدارة هنا..."
-                                    value={newMessageText}
-                                    onChange={(e) => setNewMessageText(e.target.value)}
-                                  />
-                              </div>
-                              <button 
-                                onClick={handleSendToAdmin}
-                                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
-                              >
-                                  <Send size={18}/> إرسال الرسالة
-                              </button>
-                          </div>
-                      )}
-                  </div>
-              </div>
+                       <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 p-3 rounded-full hover:bg-rose-500 transition-all"><X size={24}/></button>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-10 space-y-4 bg-slate-50/50">
+                       {students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
+                           const isAbsent = attendanceRecords.some(r => r.studentId === student.id && r.date === todayDate && r.status === 'absent');
+                           return (
+                               <div key={student.id} onClick={() => onMarkAttendance({ date: todayDate, studentId: student.id, status: isAbsent ? 'present' : 'absent', reportedBy: teacher.name, timestamp: new Date().toLocaleTimeString('ar-SA') })} className={`flex items-center justify-between p-5 rounded-[2rem] border-2 cursor-pointer transition-all ${isAbsent ? 'bg-rose-50 border-rose-200 shadow-inner' : 'bg-white border-slate-100 hover:border-emerald-300 shadow-sm'}`}>
+                                   <div className="flex items-center gap-4">
+                                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl transition-colors ${isAbsent ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{student.name.charAt(0)}</div>
+                                       <div>
+                                           <p className={`font-black ${isAbsent ? 'text-rose-900' : 'text-slate-800'}`}>{student.name}</p>
+                                           <p className="text-[10px] text-slate-400 font-bold">{student.parentPhone}</p>
+                                       </div>
+                                   </div>
+                                   {isAbsent ? <XCircle size={28} className="text-rose-500"/> : <CheckCircle size={28} className="text-slate-200 group-hover:text-emerald-500"/>}
+                               </div>
+                           );
+                       })}
+                       {students.filter(s => s.classId === selectedClassForAttendance.classId).length === 0 && <p className="text-center text-slate-400 py-10 font-bold italic">لا يوجد طلاب في هذا الفصل</p>}
+                   </div>
+                   <div className="p-10 border-t bg-white flex gap-4">
+                       <button onClick={() => setShowAttendanceModal(false)} className="flex-1 bg-slate-900 text-white py-5 rounded-3xl font-black text-xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">إغلاق وحفظ</button>
+                   </div>
+               </div>
           </div>
       )}
     </div>
