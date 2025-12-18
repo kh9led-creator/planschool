@@ -46,27 +46,27 @@ const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-// Use React.Component explicitly and add constructor to resolve "Property 'props' does not exist" error
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Add constructor to ensure props and state are correctly initialized for TypeScript
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
+// Use the imported Component class directly to ensure proper typing of state and props
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Initialize state using class property to ensure TypeScript recognizes 'state'
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { 
+    return { hasError: true, error }; 
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
-
   render() {
+    // TypeScript correctly identifies hasError on the state of this Component
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center" dir="rtl">
           <AlertTriangle size={64} className="text-red-500 mb-4" />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">عذراً، حدث خطأ في النظام</h1>
-          <button onClick={() => {localStorage.clear(); window.location.reload();}} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"><RefreshCcw size={20} /> إعادة تحميل النظام</button>
+          <button onClick={() => {localStorage.clear(); window.location.reload();}} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"><RefreshCcw size={20} /> إعادة تشغيل النظام</button>
         </div>
       );
     }
-    // Accessing this.props.children safely
+    // TypeScript correctly identifies children on the props of this Component
     return this.props.children;
   }
 }
@@ -192,7 +192,7 @@ const App: React.FC = () => {
         setIsRegistering(false);
         setShowRegisterModal(false);
         setCurrentSchoolId(newId);
-        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول الخاص بك هو: ${newId}`);
+        alert(`تم تسجيل مدرستك بنجاح!\nكود الدخول الخاص بمدرستكم هو: ${newId}`);
     };
 
     const handleUpgradeSubscription = async (id: string, plan: string, code: string) => {
@@ -248,7 +248,7 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-slate-50 font-sans" dir="rtl">
                 <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-40 border-b border-slate-100 shadow-sm">
                     <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-                        <div className="flex items-center gap-3 text-indigo-600 font-extrabold text-2xl">
+                        <div className="flex items-center gap-3 text-indigo-600 font-extrabold text-2xl text-center">
                             <div className="bg-indigo-600 p-2 rounded-xl text-white"><ShieldCheck size={28} /></div>
                             Madrasti Planner
                         </div>
@@ -272,14 +272,14 @@ const App: React.FC = () => {
                             وفر الوقت والجهد في إعداد الجداول والخطط الأسبوعية ورصد الغياب بضغطة زر. نظام سحابي متكامل يجمع بين ذكاء التخطيط وسهولة الاستخدام.
                         </p>
                         <button onClick={() => setShowRegisterModal(true)} className="bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-bold text-lg hover:bg-indigo-700 transition-all shadow-2xl flex items-center justify-center gap-3 group mx-auto lg:mx-0">
-                            اشترك الآن مجاناً <ArrowLeft size={20}/>
+                            اشترك الآن مجاناً <ArrowLeft className="group-hover:-translate-x-1 transition-transform" size={20}/>
                         </button>
                     </div>
 
                     <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-12 relative overflow-hidden animate-slideDown">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16"></div>
-                        <h2 className="text-3xl font-black text-slate-900 mb-2">الدخول للمدرسة</h2>
-                        <p className="text-slate-400 text-sm mb-10 font-medium">أدخل كود المدرسة الخاص بك للوصول للنظام.</p>
+                        <h2 className="text-3xl font-black text-slate-900 mb-2 text-right">الدخول للمدرسة</h2>
+                        <p className="text-slate-400 text-sm mb-10 font-medium text-right">أدخل كود المدرسة الخاص بك للوصول للنظام.</p>
                         <form onSubmit={(e) => {
                             e.preventDefault();
                             const code = (e.currentTarget.elements.namedItem('schoolCode') as HTMLInputElement).value;
@@ -287,13 +287,13 @@ const App: React.FC = () => {
                             if (school) {
                                 if (!school.isActive) alert('هذا الحساب معطل حالياً');
                                 else setCurrentSchoolId(code);
-                            } else alert('كود المدرسة غير صحيح.');
+                            } else alert('كود المدرسة غير صحيح، تأكد من بريدك الإلكتروني.');
                         }} className="space-y-8">
                             <div className="relative">
                                 <input name="schoolCode" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-5 text-2xl font-mono font-black text-indigo-600 outline-none focus:border-indigo-500 text-center" placeholder="sch_xxxxx" />
                                 <Fingerprint className="absolute left-6 top-6 text-slate-200" size={32}/>
                             </div>
-                            <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-3xl font-bold text-xl hover:bg-slate-800 transition-all shadow-xl">دخول النظام <LogIn size={24}/></button>
+                            <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-3xl font-bold text-xl hover:bg-slate-800 transition-all shadow-xl flex items-center justify-center gap-3">دخول النظام <LogIn size={24}/></button>
                         </form>
                     </div>
                 </div>
@@ -304,7 +304,7 @@ const App: React.FC = () => {
                             <div className="bg-indigo-600 p-10 text-white"><h3 className="text-3xl font-black">تسجيل مدرسة جديدة</h3></div>
                             <form onSubmit={handleRegisterSchool} className="p-10 space-y-4">
                                 <input required className={inputModernClass} placeholder="اسم المدرسة" value={regForm.name} onChange={e=>setRegForm({...regForm, name:e.target.value})} />
-                                <input required className={inputModernClass} placeholder="البريد الإلكتروني" value={regForm.email} onChange={e=>setRegForm({...regForm, email:e.target.value})} />
+                                <input required className={inputModernClass} placeholder="البريد الإلكتروني (لاستلام كود الدخول)" value={regForm.email} onChange={e=>setRegForm({...regForm, email:e.target.value})} />
                                 <input required className={inputModernClass} placeholder="رقم الجوال" value={regForm.phone} onChange={e=>setRegForm({...regForm, phone:e.target.value})} />
                                 <div className="grid grid-cols-2 gap-4 border-t pt-4">
                                     <input required className={inputModernClass} placeholder="اسم مستخدم المدير" value={regForm.username} onChange={e=>setRegForm({...regForm, username:e.target.value})} />
@@ -325,7 +325,7 @@ const App: React.FC = () => {
                             <form onSubmit={handleSystemLogin} className="space-y-4">
                                 <input className="w-full bg-slate-700/50 border border-slate-600 rounded-2xl px-5 py-4 outline-none focus:border-emerald-500 font-bold" placeholder="اسم المستخدم" value={sysUsername} onChange={e=>setSysUsername(e.target.value)}/>
                                 <input className="w-full bg-slate-700/50 border border-slate-600 rounded-2xl px-5 py-4 outline-none focus:border-emerald-500 font-bold" type="password" placeholder="كلمة المرور" value={sysPassword} onChange={e=>setSysPassword(e.target.value)}/>
-                                <button className="w-full bg-emerald-600 py-4 rounded-2xl font-black text-lg shadow-lg">دخول</button>
+                                <button className="w-full bg-emerald-600 py-4 rounded-2xl font-black text-lg shadow-lg">دخول لوحة التحكم</button>
                                 <button type="button" onClick={()=>setShowSystemLoginModal(false)} className="w-full text-slate-500 mt-2 font-bold">إغلاق</button>
                             </form>
                         </div>
@@ -358,15 +358,19 @@ const SchoolSystem: React.FC<{schoolId: string, schoolMetadata: SchoolMetadata, 
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
+        // Check Admin
         if (loginData.user === schoolMetadata.adminUsername && loginData.pass === schoolMetadata.adminPassword) { 
-            setView(ViewState.ADMIN); return; 
+            setView(ViewState.ADMIN); 
+            return; 
         }
+        // Check Teachers
         const t = teachers.find(x => x.username === loginData.user && (x.password === loginData.pass || x.id === loginData.pass));
         if (t) { 
             setSelectedTeacherId(t.id); 
-            setView(ViewState.TEACHER); return; 
+            setView(ViewState.TEACHER); 
+            return; 
         }
-        setLoginError('بيانات الدخول غير صحيحة');
+        setLoginError('اسم المستخدم أو كلمة المرور غير صحيحة');
     };
 
     if (view === ViewState.ADMIN) {

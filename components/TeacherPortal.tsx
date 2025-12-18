@@ -4,7 +4,7 @@ import { PlanEntry, ScheduleSlot, Subject, Teacher, WeekInfo, Student, ClassGrou
 import { DAYS_OF_WEEK } from '../services/data';
 import { User, MessageSquare, Save, ChevronDown, ChevronUp, UserCheck, CheckCircle, XCircle, X, MessageCircle, Send, Bell, Calendar, BookOpen, PenTool, Printer, Sparkles, LayoutDashboard, Clock, History, LogOut } from 'lucide-react';
 
-const teacherInputClass = "w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:bg-white focus:border-emerald-400 outline-none transition-all";
+const teacherInputClass = "w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 focus:bg-white focus:border-emerald-400 outline-none transition-all text-right";
 
 interface TeacherPortalProps {
   teacher: Teacher;
@@ -98,8 +98,8 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                         const sub = subjects.find(s => s.id === slot.subjectId);
                                         return (
                                             <div key={slot.period} className="p-8 border-2 border-slate-50 rounded-[2.5rem] bg-white hover:border-emerald-200 transition-all shadow-sm">
-                                                <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-50">
-                                                    <div>
+                                                <div className="flex flex-row-reverse justify-between items-center mb-8 pb-4 border-b border-slate-50">
+                                                    <div className="text-right">
                                                         <h4 className="font-black text-2xl text-slate-800">{sub?.name}</h4>
                                                         <p className="text-xs font-bold text-slate-400">الفصل: <span className="text-emerald-600">{cls?.name}</span></p>
                                                     </div>
@@ -107,15 +107,15 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                     <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex items-center gap-1"><PenTool size={12}/> موضوع الدرس</label>
+                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex flex-row-reverse items-center gap-1"> موضوع الدرس <PenTool size={12}/></label>
                                                         <input className={teacherInputClass} placeholder="ماذا ستشرح اليوم؟" value={getEntryValue(slot, 'lessonTopic')} onChange={e=>handleInputChange(slot, 'lessonTopic', e.target.value)} />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex items-center gap-1"><BookOpen size={12}/> الواجب المنزلي</label>
+                                                        <label className="text-[10px] font-black text-slate-400 mr-2 flex flex-row-reverse items-center gap-1"> الواجب المنزلي <BookOpen size={12}/></label>
                                                         <input className={teacherInputClass} placeholder="تفاصيل الواجب..." value={getEntryValue(slot, 'homework')} onChange={e=>handleInputChange(slot, 'homework', e.target.value)} />
                                                     </div>
                                                 </div>
-                                                <div className="mt-8 flex justify-end">
+                                                <div className="mt-8 flex justify-start">
                                                     <button onClick={() => { setSelectedClassForAttendance({ classId: slot.classId, className: cls?.name || '' }); setShowAttendanceModal(true); }} className="bg-emerald-50 text-emerald-700 px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-emerald-100 transition-all shadow-sm"><UserCheck size={18}/> رصد الغياب</button>
                                                 </div>
                                             </div>
@@ -130,18 +130,18 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
         )}
 
         {activeTab === 'messages' && (
-            <div className="max-w-2xl mx-auto space-y-6">
-                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="max-w-2xl mx-auto space-y-6 text-right">
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm text-right">
                     <h3 className="font-black text-lg mb-6">مراسلة الإدارة</h3>
-                    <textarea className="w-full h-40 bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-emerald-400 focus:bg-white transition-all resize-none" placeholder="اكتب رسالتك للإدارة هنا..." value={newMessageText} onChange={e=>setNewMessageText(e.target.value)} />
+                    <textarea className="w-full h-40 bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-emerald-400 focus:bg-white transition-all resize-none text-right" placeholder="اكتب رسالتك للإدارة هنا..." value={newMessageText} onChange={e=>setNewMessageText(e.target.value)} />
                     <button onClick={() => { if(!newMessageText) return; onSendMessage({ id: `msg_${Date.now()}`, senderId: teacher.id, senderName: teacher.name, receiverId: 'admin', content: newMessageText, timestamp: new Date().toLocaleTimeString('ar-SA'), isRead: false, type: 'direct' }); setNewMessageText(''); alert('تم إرسال رسالتك بنجاح'); }} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-lg mt-4 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"><Send size={20}/> إرسال الرسالة </button>
                 </div>
                 {myMessages.length > 0 && (
                     <div className="space-y-4">
                         <h4 className="font-black text-slate-800">الأرشيف</h4>
-                        {myMessages.reverse().map(m => (
-                            <div key={m.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
+                        {myMessages.slice().reverse().map(m => (
+                            <div key={m.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-right">
+                                <div className="flex flex-row-reverse justify-between items-center mb-2">
                                     <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">{m.senderName}</span>
                                     <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
                                 </div>
@@ -157,16 +157,16 @@ const TeacherPortal: React.FC<TeacherPortalProps> = ({
       {showAttendanceModal && selectedClassForAttendance && (
           <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-slideDown flex flex-col max-h-[90vh]">
-                   <div className="bg-slate-900 text-white p-10 flex justify-between items-center shrink-0">
-                       <h3 className="text-2xl font-black">{selectedClassForAttendance.className} - رصد الغياب</h3>
+                   <div className="bg-slate-900 text-white p-10 flex flex-row-reverse justify-between items-center shrink-0">
+                       <h3 className="text-2xl font-black text-right">{selectedClassForAttendance.className} - رصد الغياب</h3>
                        <button onClick={() => setShowAttendanceModal(false)} className="bg-white/10 p-3 rounded-full hover:bg-rose-500 transition-all"><X size={24}/></button>
                    </div>
                    <div className="flex-1 overflow-y-auto p-10 space-y-4 bg-slate-50/50">
                        {students.filter(s => s.classId === selectedClassForAttendance.classId).map(student => {
                            const isAbsent = attendanceRecords.some(r => r.studentId === student.id && r.date === todayDate && r.status === 'absent');
                            return (
-                               <div key={student.id} onClick={() => onMarkAttendance({ date: todayDate, studentId: student.id, status: isAbsent ? 'present' : 'absent', reportedBy: teacher.name, timestamp: new Date().toLocaleTimeString('ar-SA') })} className={`flex items-center justify-between p-5 rounded-[2rem] border-2 cursor-pointer transition-all ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100 hover:border-emerald-300 shadow-sm'}`}>
-                                   <p className={`font-black ${isAbsent ? 'text-rose-900' : 'text-slate-800'}`}>{student.name}</p>
+                               <div key={student.id} onClick={() => onMarkAttendance({ date: todayDate, studentId: student.id, status: isAbsent ? 'present' : 'absent', reportedBy: teacher.name, timestamp: new Date().toLocaleTimeString('ar-SA') })} className={`flex flex-row-reverse items-center justify-between p-5 rounded-[2rem] border-2 cursor-pointer transition-all ${isAbsent ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100 hover:border-emerald-300 shadow-sm'}`}>
+                                   <p className={`font-black text-right ${isAbsent ? 'text-rose-900' : 'text-slate-800'}`}>{student.name}</p>
                                    {isAbsent ? <XCircle size={28} className="text-rose-500"/> : <CheckCircle size={28} className="text-slate-200"/>}
                                </div>
                            );
