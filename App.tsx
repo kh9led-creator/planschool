@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, ErrorInfo, ReactNode, Suspense, Component } from 'react';
 // Keep lightweight components eagerly loaded
 import PublicClassPlansView from './components/PublicClassPlansView';
@@ -76,7 +77,8 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fixed: Inherit from Component directly and ensure correct generic usage to fix access to state/props
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -282,7 +284,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ schools, onEnterSchool, onOpe
                 </div>
 
                 {/* Right: Login Box */}
-                <div className="flex-1 w-full max-w-md animate-fadeIn delay-100">
+                <div className="flex-1 w-full max-md animate-fadeIn delay-100">
                     <div className="bg-white rounded-[2rem] shadow-2xl shadow-indigo-100 border border-white p-8 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                         
